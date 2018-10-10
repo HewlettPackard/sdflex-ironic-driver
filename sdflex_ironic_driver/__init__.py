@@ -14,4 +14,4 @@ import pbr.version
 
 
 __version__ = pbr.version.VersionInfo(
-    'ironic_staging_drivers').version_string()
+    'sdflex_ironic_driver').version_string()
