@@ -1,5 +1,4 @@
-# Copyright 2016 Intel Corporation.
-# All Rights Reserved.
+# Copyright 2019 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -15,6 +14,7 @@
 
 from ironic.drivers import redfish
 
+from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
 from sdflex_ironic_driver.sdflex_redfish import management as sdflex_mgmt
 from sdflex_ironic_driver.sdflex_redfish import power as sdflex_power
 
@@ -31,3 +31,8 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     def supported_power_interfaces(self):
         """List of supported power interfaces."""
         return [sdflex_power.SdflexRedfishPower]
+
+    @property
+    def supported_boot_interfaces(self):
+        """List of supported boot interfaces."""
+        return [sdflex_boot.SdflexPXEBoot]

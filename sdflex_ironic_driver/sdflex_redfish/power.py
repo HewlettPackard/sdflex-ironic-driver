@@ -1,5 +1,4 @@
-# Copyright 2017 Red Hat, Inc.
-# All Rights Reserved.
+# Copyright 2019 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -20,6 +19,7 @@ from ironic.drivers.modules import redfish
 
 sushy = importutils.try_import('sushy')
 
+
 class SdflexRedfishPower(redfish.power.RedfishPower):
 
     def __init__(self):
@@ -33,4 +33,3 @@ class SdflexRedfishPower(redfish.power.RedfishPower):
             raise ironic_exception.DriverLoadError(
                 driver='sdflex-redfish',
                 reason=_('Unable to import the sushy library'))
-
