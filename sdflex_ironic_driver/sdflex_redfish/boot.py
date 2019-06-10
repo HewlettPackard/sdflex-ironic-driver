@@ -19,6 +19,7 @@ from ironic_lib import metrics_utils
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from ironic.common import exception as ironic_exception
 from ironic.common.i18n import _
 from ironic.common import states
 from ironic.conductor import utils as manager_utils
@@ -57,8 +58,17 @@ def _disable_secure_boot(task):
                   task.node.uuid)
     else:
         if cur_sec_state:
-             LOG.debug('Disabling secure boot for node %s', task.node.uuid)
-             sdflex_common.set_secure_boot_mode(task, False)
+            LOG.debug('Disabling secure boot for node %s', task.node.uuid)
+            sdflex_common.set_secure_boot_mode(task, False)
+
+
+def is_directed_lanboot_requested(node):
+    """Checks if directed lanboot is requested
+
+    """
+    directed_lanboot_requested = (
+        node.driver_info.get('enable_directed_lanboot', 'false').lower())
+    return directed_lanboot_requested == 'true'
 
 
 def prepare_node_for_deploy(task):
@@ -67,6 +77,7 @@ def prepare_node_for_deploy(task):
     This method performs preparatory steps required for sdflex-redfish driver.
     1. Power off node
     2. Disables secure boot, if it is in enabled state.
+    3. Enables Directed Lanboot, if requested.
 
     :param task: a TaskManager instance containing the node to act on.
     :raises: SDFlexOperationError, if some operation on SDFlex failed.
@@ -75,6 +86,10 @@ def prepare_node_for_deploy(task):
 
     # Disable secure boot on the node if it is in enabled state.
     _disable_secure_boot(task)
+
+    node = task.node
+    if is_directed_lanboot_requested(node):
+        sdflex_common.enable_directed_lan_boot(node)
 
 
 def disable_secure_boot_if_supported(task):
@@ -161,5 +176,45 @@ class SdflexPXEBoot(pxe.PXEBoot):
         manager_utils.node_power_action(task, states.POWER_OFF)
         disable_secure_boot_if_supported(task)
 
+        node = task.node
+        if is_directed_lanboot_requested(node):
+            sdflex_common.disable_directed_lan_boot(node)
+
         # PXE boot interface
         super(SdflexPXEBoot, self).clean_up_instance(task)
+
+    @METRICS.timer('SdflexPXEBoot.validate')
+    def validate(self, task):
+        """Validate the deployment information for the task's node.
+
+        :param task: a TaskManager instance containing the node to act on.
+        :raises: InvalidParameterValue, if some information is invalid.
+        :raises: MissingParameterValue if some mandatory information
+        is missing on the node
+        """
+        node = task.node
+        sdflex_common.parse_driver_info(node)
+        if is_directed_lanboot_requested(node):
+            directed_lan_data = node.driver_info.get('directed_lan_data')
+            if directed_lan_data is None:
+                raise ironic_exception.MissingParameterValue(_(
+                    "Missing URLBootFile or UrlBootFile2 as keys in "
+                    "driver_info['directed_lan_data']"))
+            url_data1 = directed_lan_data.get('UrlBootFile', False)
+            url_data2 = directed_lan_data.get('UrlBootFile2', False)
+            if url_data1:
+                if not url_data1.startswith('tftp://'):
+                    raise ironic_exception.InvalidParameterValue(_(
+                        "Directed Lan boot accepts only tftp url's as "
+                        "values for UrlBootFile in"
+                        "driver_info['directed_lan_data']"))
+            elif url_data2:
+                if not url_data2.startswith('tftp://'):
+                    raise ironic_exception.InvalidParameterValue(_(
+                        "Directed Lan boot accepts only tftp url's as "
+                        "values for UrlBootFile2 in"
+                        "driver_info['directed_lan_data']"))
+            else:
+                raise ironic_exception.MissingParameterValue(_(
+                    "Missing URLBootFile or UrlBootFile2 as keys in "
+                    "driver_info['directed_lan_data']"))

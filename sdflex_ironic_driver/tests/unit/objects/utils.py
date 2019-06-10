@@ -13,14 +13,11 @@
 # under the License.
 
 
-import inspect
-
 import six
 
 from ironic.common import exception
 from ironic.common.i18n import _
 from ironic import objects
-from ironic.objects import notification
 from sdflex_redfish_ironic.tests.unit.db import utils as db_utils
 
 

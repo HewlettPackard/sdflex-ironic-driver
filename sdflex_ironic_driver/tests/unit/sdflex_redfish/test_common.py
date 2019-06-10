@@ -28,14 +28,16 @@ from ironic.drivers.modules import deploy_utils
 from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.objects import utils as obj_utils
 
-from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
 from sdflex_ironic_driver import exception as exception
+from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
 
 INFO_DICT = {
     "redfish_address": "1.2.3.4",
     "redfish_username": "admin",
     "redfish_password": "fake",
     "redfish_system_id": "/redfish/v1/Systems/Partition2",
+    "enable_directed_lanboot": False,
+    "directed_lan_data": {"UrlBootFile": "tftp://1.1.1.4/tftpboot/bootx64.efi"}
 }
 sdflex_client = importutils.try_import('sdflexutils.redfish.client')
 sdflex_error = importutils.try_import('sdflexutils.exception')
@@ -232,3 +234,57 @@ class SdflexCommonMethodsTestCase(BaseSdflexTest):
                               sdflex_common.set_secure_boot_mode,
                               task, False)
         sdflex_mock_object.set_secure_boot_mode.assert_called_once_with(False)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_enable_directed_lan_boot(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            directed_lan_data = task.node.driver_info['directed_lan_data']
+            sdflex_common.enable_directed_lan_boot(task.node)
+            sdflex_object_mock.set_bios_settings.assert_called_once_with(
+                directed_lan_data)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_enable_directed_lan_boot_fail(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        sdflex_object_mock.set_bios_settings.side_effect = (
+            sdflex_error.SDFlexError('error'))
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            directed_lan_data = None
+            task.node.driver_info['directed_lan_data'] = directed_lan_data
+            self.assertRaises(exception.SDFlexOperationError,
+                              sdflex_common.enable_directed_lan_boot,
+                              task.node)
+            sdflex_object_mock.set_bios_settings.assert_called_once_with(
+                directed_lan_data)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_disable_directed_lan_boot(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            directed_lan_data = {'UrlBootFile': None, 'UrlBootFile2': None}
+            task.node.driver_info['directed_lan_data'] = directed_lan_data
+            sdflex_common.enable_directed_lan_boot(task.node)
+            sdflex_object_mock.set_bios_settings.assert_called_once_with(
+                directed_lan_data)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_disable_directed_lan_boot_fail(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        sdflex_object_mock.set_bios_settings.side_effect = (
+            sdflex_error.SDFlexError('error'))
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            directed_lan_data = task.node.driver_info['directed_lan_data']
+            self.assertRaises(exception.SDFlexOperationError,
+                              sdflex_common.enable_directed_lan_boot,
+                              task.node)
+            sdflex_object_mock.set_bios_settings.assert_called_once_with(
+                directed_lan_data)

@@ -36,6 +36,7 @@ METRICS = metrics_utils.get_metrics_logger(__name__)
 
 sushy = importutils.try_import('sushy')
 
+
 def cache_bios_settings(func):
     """A decorator to cache bios settings after running the function.
 
@@ -176,7 +177,6 @@ class SdflexRedfishBios(base.BIOSInterface):
             delete_names = [d['name'] for d in delete_list]
             objects.BIOSSettingList.delete(
                 task.context, node_id, delete_names)
-
 
     def post_reset(self, task):
         """Perform post reset action to apply the BIOS factory reset.

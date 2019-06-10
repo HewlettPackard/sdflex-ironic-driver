@@ -27,8 +27,8 @@ from ironic.tests.unit.db import base as db_base
 from ironic.tests.unit.db import utils as db_utils
 from ironic.tests.unit.objects import utils as obj_utils
 
-from sdflex_ironic_driver.sdflex_redfish import bios as redfish_bios
 from sdflex_ironic_driver import exception as sdflex_exception
+from sdflex_ironic_driver.sdflex_redfish import bios as redfish_bios
 
 sushy = importutils.try_import('sushy')
 
@@ -272,4 +272,3 @@ class SdflexRedfishBiosTestCase(db_base.DbTestCase):
             task.driver.bios.apply_configuration(task, settings)
             task.driver.bios.post_configuration\
                 .assert_called_once_with(task, settings)
-

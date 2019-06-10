@@ -1,7 +1,9 @@
 CHANGES
 =======
 
-* Sdflex-redfish Bios interface implementation
+* Enable Directed LAN Boot for sdflex-redfish
+* sdflex-redfish Bios interface implementation
+* Adding Python3 support for Tox
 * secureboot enablement for sdflex-redfish driver
 * test push from sgi devstack
 * Revert "testmergeissue"
