@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+* Sdflex-redfish Bios interface implementation
 * secureboot enablement for sdflex-redfish driver
 * test push from sgi devstack
 * testmergeissue
