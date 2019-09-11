@@ -3,6 +3,7 @@ CHANGES
 
 * secureboot enablement for sdflex-redfish driver
 * test push from sgi devstack
+* Revert "testmergeissue"
 * testmergeissue
 * test
 * test case framework
