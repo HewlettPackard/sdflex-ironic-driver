@@ -14,6 +14,7 @@
 
 from ironic.drivers import redfish
 
+from sdflex_ironic_driver.sdflex_redfish import bios as sdflex_bios
 from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
 from sdflex_ironic_driver.sdflex_redfish import management as sdflex_mgmt
 from sdflex_ironic_driver.sdflex_redfish import power as sdflex_power
@@ -36,3 +37,8 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     def supported_boot_interfaces(self):
         """List of supported boot interfaces."""
         return [sdflex_boot.SdflexPXEBoot]
+
+    @property
+    def supported_bios_interfaces(self):
+        """List of supported Bios interfaces."""
+        return [sdflex_bios.SdflexRedfishBios]
