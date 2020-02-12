@@ -1,8 +1,9 @@
 CHANGES
 =======
 
+* Changes required for PYPI Packaging
 * Enable Directed LAN Boot for sdflex-redfish
-* sdflex-redfish Bios interface implementation
+* Sdflex-redfish Bios interface implementation
 * Adding Python3 support for Tox
 * secureboot enablement for sdflex-redfish driver
 * test push from sgi devstack
