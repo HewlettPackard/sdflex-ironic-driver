@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+* UEFI HTTP Boot implementation in sdflex-redfish
 * Changes required for PYPI Packaging
 * Enable Directed LAN Boot for sdflex-redfish
 * Sdflex-redfish Bios interface implementation

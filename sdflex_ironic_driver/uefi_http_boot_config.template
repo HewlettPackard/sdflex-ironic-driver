@@ -1,0 +1,22 @@
+set default=deploy
+set timeout=5
+set hidden_timeout_quiet=false
+
+menuentry "deploy"  {
+    linuxefi /{{ http_options.deployment_aki_path }} selinux=0 troubleshoot=0 text {{ http_options.pxe_append_params|default("", true) }} boot_server={{http_options.tftp_server}} ipa-api-url={{ http_options['ipa-api-url'] }} install={{http_options.http_server}}
+    initrdefi /{{ http_options.deployment_ari_path }}
+}
+
+menuentry "boot_partition"  {
+    linuxefi /{{ http_options.aki_path }} root={{ ROOT }} ro text {{ http_options.pxe_append_params|default("", true) }} boot_server={{http_options.tftp_server}} install={{http_options.http_server}}
+    initrdefi /{{ http_options.ari_path }}
+}
+
+menuentry "boot_ramdisk"  {
+    linuxefi /{{ http_options.aki_path }} root=/dev/ram0 text {{ http_options.pxe_append_params|default("", true) }} {{ http_options.ramdisk_opts|default('', true) }} install={{http_options.http_server}}
+    initrdefi /{{ http_options.ari_path }}
+}
+
+menuentry "boot_whole_disk"  {
+    linuxefi chain.c32 mbr:{{ DISK_IDENTIFIER }}
+}

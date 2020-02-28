@@ -26,8 +26,11 @@ from ironic.common import exception
 from ironic.common import states
 from ironic.conductor import task_manager
 from ironic.conductor import utils as manager_utils
+from ironic.drivers.modules import boot_mode_utils
+from ironic.drivers.modules import deploy_utils
 from ironic.drivers.modules import pxe
 
+from sdflex_ironic_driver import http_utils
 from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
 from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
 from sdflex_ironic_driver.tests.unit.sdflex_redfish import test_common
@@ -95,6 +98,7 @@ class SdflexBootPrivateMethodsTestCase(test_common.BaseSdflexTest):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
             task.node.driver_info['enable_directed_lanboot'] = 'False'
+            task.node.driver_info['enable_uefi_httpboot'] = 'False'
             sdflex_boot.prepare_node_for_deploy(task)
             func_node_power_action.assert_called_once_with(task,
                                                            states.POWER_OFF)
@@ -131,6 +135,27 @@ class SdflexBootPrivateMethodsTestCase(test_common.BaseSdflexTest):
                                                            states.POWER_OFF)
             func_disable_secure_boot.assert_called_once_with(task)
 
+    @mock.patch.object(sdflex_common, 'enable_directed_lan_boot',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(http_utils, 'is_http_boot_requested',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(sdflex_boot, '_disable_secure_boot', spec_set=True,
+                       autospec=True)
+    @mock.patch.object(manager_utils, 'node_power_action', spec_set=True,
+                       autospec=True)
+    def test_prepare_node_for_deploy_uefi_http_boot(
+            self, func_node_power_action, func_disable_secure_boot,
+            func_is_http_boot_enabled, func_enable_directed):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_directed_lanboot'] = 'False'
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            sdflex_boot.prepare_node_for_deploy(task)
+            func_node_power_action.assert_called_once_with(task,
+                                                           states.POWER_OFF)
+            func_disable_secure_boot.assert_called_once_with(task)
+            func_is_http_boot_enabled.assert_called_once_with(task.node)
+
 
 class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
 
@@ -153,8 +178,51 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             pxe_prepare_ramdisk_mock.assert_called_once_with(
                 mock.ANY, task, None)
 
+    @mock.patch.object(sdflex_common, 'enable_directed_lan_boot',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(http_utils, 'is_http_boot_requested',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(http_utils, 'get_instance_image_info',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(http_utils, 'get_image_info',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(boot_mode_utils, 'sync_boot_mode',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(http_utils, 'build_http_config_options',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(http_utils, 'create_http_config',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(http_utils, 'cache_ramdisk_kernel',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(manager_utils, 'node_set_boot_device',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(deploy_utils, 'get_pxe_config_template',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(sdflex_boot, 'prepare_node_for_deploy', spec_set=True,
+                       autospec=True)
+    def _test_prepare_ramdisk_needs_node_prep_uefi_http_boot_enabled(
+            self, prepare_node_mock, get_pxe_config_template_mock,
+            node_set_boot_device_mock, cache_ramdisk_kernel_mock,
+            create_http_config_mock, build_http_config_options_mock,
+            sync_boot_mode_mock, get_image_info_mock,
+            get_instance_image_info_mock, is_http_boot_requested_mock,
+            func_set_data, prov_state):
+        self.node.provision_state = prov_state
+        self.node.save()
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['deploy_kernel'] = ''
+            self.assertIsNone(
+                task.driver.boot.prepare_ramdisk(task, None))
+            is_http_boot_requested_mock.assert_called_once_with(task.node)
+
     def test_prepare_ramdisk_in_deploying(self):
         self._test_prepare_ramdisk_needs_node_prep(prov_state=states.DEPLOYING)
+
+    def test_prepare_ramdisk_in_deploying_uefi_http_boot_enabled(self):
+        self._test_prepare_ramdisk_needs_node_prep_uefi_http_boot_enabled(
+            prov_state=states.DEPLOYING)
 
     def test_prepare_ramdisk_in_rescuing(self):
         self._test_prepare_ramdisk_needs_node_prep(prov_state=states.RESCUING)
@@ -213,7 +281,31 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             update_secure_boot_mode_mock.assert_called_once_with(task, True)
             pxe_prepare_instance_mock.assert_called_once_with(mock.ANY, task)
 
-    @mock.patch.object(sdflex_common, 'disable_directed_lan_boot',
+    @mock.patch.object(http_utils, 'is_http_boot_requested', autospec=True)
+    @mock.patch.object(http_utils, 'get_instance_image_info', autospec=True)
+    @mock.patch.object(http_utils, 'cache_ramdisk_kernel', autospec=True)
+    @mock.patch.object(http_utils, 'build_service_http_config', autospec=True)
+    @mock.patch.object(sdflex_common, 'update_secure_boot_mode', autospec=True)
+    @mock.patch.object(boot_mode_utils, 'sync_boot_mode', autospec=True)
+    @mock.patch.object(manager_utils, 'node_set_boot_device', autospec=True)
+    def test_prepare_instance_uefi_http_boot_requested(
+            self, sync_boot_mode_mock, node_set_boot_device_mock,
+            update_secure_boot_mode_mock, build_service_http_config_mock,
+            cache_ramdisk_kernel_mock, get_instance_image_info_mock,
+            func_is_http_boot_requested):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_internal_info['root_uuid_or_disk_id'] = (
+                "30212642-09d3-467f-8e09-21685826ab50")
+            self.assertIsNone(
+                task.driver.boot.prepare_instance(task))
+            task.driver.boot.prepare_instance(task)
+            update_secure_boot_mode_mock.assert_called_with(task, True)
+            func_is_http_boot_requested.assert_called_with(task.node)
+            get_instance_image_info_mock.assert_called_with(task)
+
+    @mock.patch.object(sdflex_common, 'reset_bios_settings',
                        spec_set=True, autospec=True)
     @mock.patch.object(sdflex_boot, 'disable_secure_boot_if_supported',
                        spec_set=True, autospec=True)
@@ -250,31 +342,74 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             disable_secure_boot_if_supported_mock.assert_called_once_with(task)
             pxe_cleanup_mock.assert_called_once_with(mock.ANY, task)
 
-    @mock.patch.object(sdflex_boot, 'is_directed_lanboot_requested',
+    @mock.patch.object(sdflex_common, 'reset_bios_settings',
                        spec_set=True, autospec=True)
-    @mock.patch.object(pxe.PXEBoot, 'validate', spec_set=True, autospec=True)
-    def test_validate(self, func_validate, is_directed_lanboot_requested_mock):
+    @mock.patch.object(http_utils, 'is_http_boot_requested',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(sdflex_boot, 'disable_secure_boot_if_supported',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(manager_utils, 'node_power_action', spec_set=True,
+                       autospec=True)
+    def test_clean_up_instance_uefi_httpboot_enable(
+            self, node_power_mock, disable_secure_boot_if_supported_mock,
+            func_http_boot_requested, func_reset_bios_settings):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
-            task.node.driver_info['enable_directed_lanboot'] = 'True'
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['enable_directed_lanboot'] = 'False'
+            task.driver.boot.clean_up_instance(task)
+            node_power_mock.assert_called_once_with(task, states.POWER_OFF)
+            disable_secure_boot_if_supported_mock.assert_called_once_with(task)
+            func_http_boot_requested.assert_called_with(task.node)
+            func_reset_bios_settings.assert_called_once_with(task.node)
+
+    @mock.patch.object(sdflex_boot, 'disable_secure_boot_if_supported',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(manager_utils, 'node_power_action', spec_set=True,
+                       autospec=True)
+    @mock.patch.object(pxe.PXEBoot, 'clean_up_instance', spec_set=True,
+                       autospec=True)
+    def test_clean_up_instance_uefi_httpboot_disable(
+            self, pxe_cleanup_mock, node_power_mock,
+            disable_secure_boot_if_supported_mock):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'False'
+            task.node.driver_info['enable_directed_lanboot'] = 'False'
+            task.driver.boot.clean_up_instance(task)
+            node_power_mock.assert_called_once_with(task, states.POWER_OFF)
+            disable_secure_boot_if_supported_mock.assert_called_once_with(task)
+            pxe_cleanup_mock.assert_called_once_with(mock.ANY, task)
+
+    @mock.patch.object(pxe.PXEBoot, 'validate', spec_set=True, autospec=True)
+    def test_validate(self, func_validate):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
             task.driver.boot.validate(task)
-            is_directed_lanboot_requested_mock.assert_called_once_with(
-                task.node)
 
     def test_validate_fail(self):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
             task.node.driver_info['enable_directed_lanboot'] = 'True'
-            task.node.driver_info['directed_lan_data'] = {
+            task.node.driver_info['boot_file_path'] = {
                 "UrlBootFile3": "tftp://1.1.1.24/tftpboot/bootx64.efi"}
             self.assertRaises(exception.MissingParameterValue,
                               task.driver.boot.validate, task)
 
-    def test_validate_directed_lan_data_none(self):
+    def test_validate_boot_file_path_none(self):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
             task.node.driver_info['enable_directed_lanboot'] = 'True'
-            task.node.driver_info['directed_lan_data'] = None
+            task.node.driver_info['boot_file_path'] = None
+            self.assertRaises(exception.MissingParameterValue,
+                              task.driver.boot.validate, task)
+
+    def test_validate_uefi_boot_file_path_none(self):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_directed_lanboot'] = 'False'
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['boot_file_path'] = None
             self.assertRaises(exception.MissingParameterValue,
                               task.driver.boot.validate, task)
 
@@ -283,8 +418,28 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
             task.node.driver_info['enable_directed_lanboot'] = 'True'
-            task.node.driver_info['directed_lan_data'] = {
+            task.node.driver_info['boot_file_path'] = {
                 "UrlBootFile": "1.1.1.24/tftpboot/bootx64.efi"}
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.boot.validate, task)
+
+    @mock.patch.object(pxe.PXEBoot, 'validate', spec_set=True, autospec=True)
+    def test_validate_directed_lan_wrong_http_url(self, func_validate):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_directed_lanboot'] = 'True'
+            task.node.driver_info['boot_file_path'] = {
+                "UrlBootFile": "http://1.1.1.24/tftpboot/bootx64.efi"}
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.boot.validate, task)
+
+    @mock.patch.object(pxe.PXEBoot, 'validate', spec_set=True, autospec=True)
+    def test_validate_uefi_http_wrong_tftp_url(self, func_validate):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['boot_file_path'] = {
+                "UrlBootFile": "tftp://1.1.1.24/tftpboot/bootx64.efi"}
             self.assertRaises(exception.InvalidParameterValue,
                               task.driver.boot.validate, task)
 
