@@ -6,14 +6,6 @@ CHANGES
 * Sdflex-redfish Bios interface implementation
 * Adding Python3 support for Tox
 * secureboot enablement for sdflex-redfish driver
-* test push from sgi devstack
-* Revert "testmergeissue"
-* testmergeissue
-* test
 * test case framework
-* test push from sgi devstack
-* git test from localvm
-* fix \_\_init\_\_ file
 * Add the hardware type sdflex-redfish
 * Creating the initial framework for sdflex-redfish driver
-* Initial commit
