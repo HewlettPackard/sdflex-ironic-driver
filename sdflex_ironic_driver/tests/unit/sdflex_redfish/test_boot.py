@@ -1,3 +1,4 @@
+# Copyright 2015 Hewlett-Packard Development Company, L.P.
 # Copyright 2019 Hewlett Packard Enterprise Development LP
 # All Rights Reserved.
 #
@@ -12,6 +13,8 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+#
+# Hewlett Packard Enterprise made changes in this file.
 
 """Test class for boot methods used by sdflex modules."""
 
