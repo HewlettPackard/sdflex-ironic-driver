@@ -1,3 +1,4 @@
+# Copyright 2015 Hewlett-Packard Development Company, L.P.
 # Copyright 2019 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -11,6 +12,9 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+#
+# Hewlett Packard Enterprise made changes in this file.
+
 """
 Boot Interface for SDFlex driver and its supporting methods.
 """
