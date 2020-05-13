@@ -182,10 +182,10 @@ def enable_directed_lan_boot(node):
     """
     operation = (_("Setting bios setting for enabling Directed Lan boot"
                    "for node %(node)s.") % {'node': node.uuid})
-    directed_lan_data = node.driver_info['directed_lan_data']
+    boot_file_path = node.driver_info['boot_file_path']
     sdflex_object = get_sdflex_object(node)
     try:
-        sdflex_object.set_bios_settings(directed_lan_data)
+        sdflex_object.set_bios_settings(boot_file_path)
         LOG.debug(operation)
 
     except sdflex_error.SDFlexError as sdflex_exception:
@@ -193,8 +193,8 @@ def enable_directed_lan_boot(node):
                                              error=sdflex_exception)
 
 
-def disable_directed_lan_boot(node):
-    """Disable Directed Lan boot.
+def reset_bios_settings(node):
+    """Disable Directed LAN Boot or UEFI HTTP Boot.
 
     Unset the 'UrlBootFile,UrlBootFile2' in the bios setting to disable
     Directed Lan boot.
@@ -203,11 +203,11 @@ def disable_directed_lan_boot(node):
     operation = (_("Setting 'UrlBootFile' and 'UrlBootFile2' as '', in the"
                    "bios setting for disabling Directed Lan boot for node"
                    "%(node)s.") % {'node': node.uuid})
-    directed_lan_data = {'UrlBootFile': '', 'UrlBootFile2': ''}
+    boot_file_path = {'UrlBootFile': '', 'UrlBootFile2': ''}
     sdflex_object = get_sdflex_object(node)
 
     try:
-        sdflex_object.set_bios_settings(directed_lan_data)
+        sdflex_object.set_bios_settings(boot_file_path)
         LOG.debug(operation)
 
     except sdflex_error.SDFlexError as sdflex_exception:
