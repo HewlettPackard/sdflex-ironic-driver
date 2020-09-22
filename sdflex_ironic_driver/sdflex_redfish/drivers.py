@@ -1,4 +1,4 @@
-# Copyright 2019 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -16,6 +16,7 @@ from ironic.drivers import redfish
 
 from sdflex_ironic_driver.sdflex_redfish import bios as sdflex_bios
 from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
+from sdflex_ironic_driver.sdflex_redfish import deploy as sdflex_deploy
 from sdflex_ironic_driver.sdflex_redfish import management as sdflex_mgmt
 from sdflex_ironic_driver.sdflex_redfish import power as sdflex_power
 
@@ -42,3 +43,8 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     def supported_bios_interfaces(self):
         """List of supported Bios interfaces."""
         return [sdflex_bios.SdflexRedfishBios]
+
+    @property
+    def supported_deploy_interfaces(self):
+        """List of supported Deploy interfaces."""
+        return [sdflex_deploy.SDFlexAgentDeploy]

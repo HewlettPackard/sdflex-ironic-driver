@@ -365,7 +365,7 @@ def get_instance_image_info(task):
     # NOTE(pas-ha) do not report image kernel and ramdisk for
     # local boot or whole disk images so that they are not cached
     if (node.driver_internal_info.get('is_whole_disk_image')
-        or deploy_utils.get_boot_option(node) == 'local'):
+            or deploy_utils.get_boot_option(node) == 'local'):
             return image_info
     root_dir = get_http_boot_dir()
     i_info = node.instance_info
@@ -435,7 +435,6 @@ def build_instance_http_options(task, http_info):
         http_opts['ramdisk_opts'] = i_info['ramdisk_kernel_arguments']
     except KeyError:
         pass
-
     return http_opts
 
 

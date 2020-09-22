@@ -1,5 +1,5 @@
 # Copyright 2018 DMTF. All rights reserved.
-# Copyright 2019 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -56,7 +56,8 @@ class SdflexRedfishBiosTestCase(db_base.DbTestCase):
                     enabled_hardware_types=['sdflex-redfish'],
                     enabled_boot_interfaces=['sdflex-redfish'],
                     enabled_power_interfaces=['sdflex-redfish'],
-                    enabled_management_interfaces=['sdflex-redfish'])
+                    enabled_management_interfaces=['sdflex-redfish'],
+                    enabled_deploy_interfaces=['sdflex-redfish'])
         self.node = obj_utils.create_test_node(
             self.context, driver='sdflex-redfish', driver_info=INFO_DICT)
 

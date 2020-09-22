@@ -1,5 +1,5 @@
 # Copyright 2015 Hewlett-Packard Development Company, L.P.
-# Copyright 2019 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -283,7 +283,7 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
 
     @mock.patch.object(http_utils, 'is_http_boot_requested', autospec=True)
     @mock.patch.object(http_utils, 'get_instance_image_info', autospec=True)
-    @mock.patch.object(http_utils, 'cache_ramdisk_kernel', autospec=True)
+    @mock.patch.object(http_utils, 'clean_up_http_config', autospec=True)
     @mock.patch.object(http_utils, 'build_service_http_config', autospec=True)
     @mock.patch.object(sdflex_common, 'update_secure_boot_mode', autospec=True)
     @mock.patch.object(boot_mode_utils, 'sync_boot_mode', autospec=True)
@@ -291,7 +291,8 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
     def test_prepare_instance_uefi_http_boot_requested(
             self, sync_boot_mode_mock, node_set_boot_device_mock,
             update_secure_boot_mode_mock, build_service_http_config_mock,
-            cache_ramdisk_kernel_mock, get_instance_image_info_mock,
+            clean_up_http_config,
+            get_instance_image_info_mock,
             func_is_http_boot_requested):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
@@ -303,7 +304,6 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             task.driver.boot.prepare_instance(task)
             update_secure_boot_mode_mock.assert_called_with(task, True)
             func_is_http_boot_requested.assert_called_with(task.node)
-            get_instance_image_info_mock.assert_called_with(task)
 
     @mock.patch.object(sdflex_common, 'reset_bios_settings',
                        spec_set=True, autospec=True)
@@ -350,8 +350,10 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
                        spec_set=True, autospec=True)
     @mock.patch.object(manager_utils, 'node_power_action', spec_set=True,
                        autospec=True)
+    @mock.patch.object(http_utils, 'clean_up_http_config', autospec=True)
     def test_clean_up_instance_uefi_httpboot_enable(
-            self, node_power_mock, disable_secure_boot_if_supported_mock,
+            self, clean_up_http_config_mock,
+            node_power_mock, disable_secure_boot_if_supported_mock,
             func_http_boot_requested, func_reset_bios_settings):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
