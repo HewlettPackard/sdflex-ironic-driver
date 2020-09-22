@@ -1,7 +1,16 @@
 CHANGES
 =======
 
+* Boot from pre-provisioned volume
+
+1.1.0
+-----
+
 * UEFI HTTP Boot implementation in sdflex-redfish
+
+1.0.0
+-----
+
 * Changes required for PYPI Packaging
 * Enable Directed LAN Boot for sdflex-redfish
 * Sdflex-redfish Bios interface implementation
