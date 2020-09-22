@@ -1,5 +1,5 @@
 # Copyright 2014 Hewlett-Packard Development Company, L.P.
-# Copyright 2019 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -58,6 +58,7 @@ class BaseSdflexTest(db_base.DbTestCase):
 
     boot_interface = None
     bios_interface = 'sdflex-redfish'
+    deploy_interface = 'sdflex-redfish'
 
     def setUp(self):
         super(BaseSdflexTest, self).setUp()
@@ -65,6 +66,7 @@ class BaseSdflexTest(db_base.DbTestCase):
                     enabled_boot_interfaces=['sdflex-redfish', 'fake'],
                     enabled_power_interfaces=['sdflex-redfish', 'fake'],
                     enabled_bios_interfaces=['sdflex-redfish', 'fake'],
+                    enabled_deploy_interfaces=['sdflex-redfish', 'fake'],
                     enabled_management_interfaces=['sdflex-redfish', 'fake'],
                     enabled_inspect_interfaces=['inspector', 'fake',
                                                 'no-inspect'])
@@ -73,6 +75,7 @@ class BaseSdflexTest(db_base.DbTestCase):
             self.context, uuid=uuidutils.generate_uuid(),
             driver='sdflex-redfish', boot_interface=self.boot_interface,
             bios_interface=self.bios_interface,
+            deploy_interface=self.deploy_interface,
             driver_info=self.info)
 
 
