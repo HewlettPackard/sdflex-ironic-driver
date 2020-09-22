@@ -435,7 +435,6 @@ def build_instance_http_options(task, http_info):
         http_opts['ramdisk_opts'] = i_info['ramdisk_kernel_arguments']
     except KeyError:
         pass
-
     return http_opts
 
 
