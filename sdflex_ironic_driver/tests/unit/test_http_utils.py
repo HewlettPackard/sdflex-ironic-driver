@@ -552,11 +552,13 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
 
     def test_get_instance_image_info(self):
         # Tests when 'is_whole_disk_image' exists in driver_internal_info
+        self.config(group="deploy", default_boot_option="netboot")
         self._test_get_instance_image_info()
 
     def test_get_instance_image_info_without_is_whole_disk_image(self):
         # Tests when 'is_whole_disk_image' doesn't exists in
         # driver_internal_info
+        self.config(group="deploy", default_boot_option="netboot")
         del self.node.driver_internal_info['is_whole_disk_image']
         self.node.save()
         self._test_get_instance_image_info()
@@ -616,8 +618,8 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
                                          ramdisk_label))
         }
 
-        if (whle_dsk_img
-            or deploy_utils.get_boot_option(self.node) == 'local'):
+        if (whle_dsk_img or (
+                deploy_utils.get_boot_option(self.node) == 'local')):
                 ramdisk = 'no_ramdisk'
                 kernel = 'no_kernel'
         else:
@@ -724,7 +726,6 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
     @mock.patch.object(fileutils, 'ensure_tree', autospec=True)
     @mock.patch.object(deploy_utils, 'fetch_images', autospec=True)
     def test_cache_ramdisk_kernel(self, mock_fetch_image, mock_ensure_tree):
-        self.config(ipxe_enabled=False, group='pxe')
         fake_pxe_info = {'foo': 'bar'}
         expected_path = os.path.join(CONF.deploy.http_root, self.node.uuid)
         with task_manager.acquire(self.context, self.node.uuid,
