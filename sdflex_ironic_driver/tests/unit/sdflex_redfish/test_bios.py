@@ -50,13 +50,17 @@ class NoBiosSystem(object):
 @mock.patch('eventlet.greenthread.sleep', lambda _t: None)
 class SdflexRedfishBiosTestCase(db_base.DbTestCase):
 
+    boot_interface = 'sdflex-redfish'
+    deploy_interface = 'sdflex-redfish'
+
     def setUp(self):
         super(SdflexRedfishBiosTestCase, self).setUp()
         self.config(enabled_bios_interfaces=['sdflex-redfish'],
                     enabled_hardware_types=['sdflex-redfish'],
                     enabled_boot_interfaces=['sdflex-redfish'],
                     enabled_power_interfaces=['sdflex-redfish'],
-                    enabled_management_interfaces=['sdflex-redfish'])
+                    enabled_management_interfaces=['sdflex-redfish'],
+                    enabled_deploy_interfaces=['sdflex-redfish'])
         self.node = obj_utils.create_test_node(
             self.context, driver='sdflex-redfish', driver_info=INFO_DICT)
 

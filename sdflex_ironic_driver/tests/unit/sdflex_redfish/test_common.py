@@ -58,6 +58,7 @@ class BaseSdflexTest(db_base.DbTestCase):
 
     boot_interface = None
     bios_interface = 'sdflex-redfish'
+    deploy_interface = 'sdflex-redfish'
 
     def setUp(self):
         super(BaseSdflexTest, self).setUp()
@@ -65,6 +66,7 @@ class BaseSdflexTest(db_base.DbTestCase):
                     enabled_boot_interfaces=['sdflex-redfish', 'fake'],
                     enabled_power_interfaces=['sdflex-redfish', 'fake'],
                     enabled_bios_interfaces=['sdflex-redfish', 'fake'],
+                    enabled_deploy_interfaces=['sdflex-redfish', 'fake'],
                     enabled_management_interfaces=['sdflex-redfish', 'fake'],
                     enabled_inspect_interfaces=['inspector', 'fake',
                                                 'no-inspect'])
@@ -72,7 +74,7 @@ class BaseSdflexTest(db_base.DbTestCase):
         self.node = obj_utils.create_test_node(
             self.context, uuid=uuidutils.generate_uuid(),
             driver='sdflex-redfish', boot_interface=self.boot_interface,
-            bios_interface=self.bios_interface,
+            bios_interface=self.bios_interface, deploy_interface=self.deploy_interface,
             driver_info=self.info)
 
 

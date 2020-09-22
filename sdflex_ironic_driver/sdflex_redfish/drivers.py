@@ -18,6 +18,7 @@ from sdflex_ironic_driver.sdflex_redfish import bios as sdflex_bios
 from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
 from sdflex_ironic_driver.sdflex_redfish import management as sdflex_mgmt
 from sdflex_ironic_driver.sdflex_redfish import power as sdflex_power
+from sdflex_ironic_driver.sdflex_redfish import deploy as sdflex_deploy
 
 
 class SdflexRedfishHardware(redfish.RedfishHardware):
@@ -42,3 +43,8 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     def supported_bios_interfaces(self):
         """List of supported Bios interfaces."""
         return [sdflex_bios.SdflexRedfishBios]
+
+    @property
+    def supported_deploy_interfaces(self):
+        """List of supported Deploy interfaces."""
+        return [sdflex_deploy.SDFlexAgentDeploy]
