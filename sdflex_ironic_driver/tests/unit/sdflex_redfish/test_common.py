@@ -63,7 +63,8 @@ class BaseSdflexTest(db_base.DbTestCase):
     def setUp(self):
         super(BaseSdflexTest, self).setUp()
         self.config(enabled_hardware_types=['sdflex-redfish', 'fake-hardware'],
-                    enabled_boot_interfaces=['sdflex-redfish', 'fake'],
+                    enabled_boot_interfaces=['sdflex-redfish',
+                                             'sdflex-redfish-vmedia', 'fake'],
                     enabled_power_interfaces=['sdflex-redfish', 'fake'],
                     enabled_bios_interfaces=['sdflex-redfish', 'fake'],
                     enabled_deploy_interfaces=['sdflex-redfish', 'fake'],

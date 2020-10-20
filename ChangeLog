@@ -1,6 +1,9 @@
 CHANGES
 =======
 
+* Sdflex Vmedia implementation of Sdflex Ironic Driver
+* Removed bios.py and test\_bios.py
+* Adding agent & direct interfaces to list of Supported Deploy Intrefaces
 * Boot from pre-provisioned volume
 
 1.1.0
@@ -19,3 +22,4 @@ CHANGES
 * test case framework
 * Add the hardware type sdflex-redfish
 * Creating the initial framework for sdflex-redfish driver
+* Initial commit
