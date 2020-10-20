@@ -1,5 +1,5 @@
 # Copyright 2014 Hewlett-Packard Development Company, L.P.
-# Copyright 2019 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -213,3 +213,23 @@ def reset_bios_settings(node):
     except sdflex_error.SDFlexError as sdflex_exception:
         raise exception.SDFlexOperationError(operation=operation,
                                              error=sdflex_exception)
+
+
+def eject_vmedia(task, device):
+    """Eject the Vmedia.
+
+    device: Ejects this device
+    """
+
+    sdflex_object = get_sdflex_object(task.node)
+    sdflex_object.eject_vmedia(device)
+
+
+def insert_vmedia(task, url, device, remote_server_data):
+    """Insert's the Vmedia.
+
+    url: URL of the iso which has to be inserted
+    device: Insert the URL to this device
+    """
+    sdflex_object = get_sdflex_object(task.node)
+    sdflex_object.insert_vmedia(url, device, remote_server_data)
