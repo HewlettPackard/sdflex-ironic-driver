@@ -18,23 +18,33 @@
 
 """Test class for boot methods used by sdflex modules."""
 
+import os
+
 import mock
-from oslo_config import cfg
 import six
 
+from oslo_config import cfg
+
+from ironic.common import boot_devices
 from ironic.common import exception
+from ironic.common import images
 from ironic.common import states
 from ironic.conductor import task_manager
 from ironic.conductor import utils as manager_utils
 from ironic.drivers.modules import boot_mode_utils
 from ironic.drivers.modules import deploy_utils
 from ironic.drivers.modules import pxe
+from ironic.drivers.modules.redfish import boot as redfish_boot
+from ironic.drivers.modules.redfish import utils as redfish_utils
+from ironic.tests.unit.objects import utils as obj_utils
+
+from sdflexutils.redfish.resources.system import (
+    constants as sdflexutils_constants)
 
 from sdflex_ironic_driver import http_utils
 from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
 from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
 from sdflex_ironic_driver.tests.unit.sdflex_redfish import test_common
-
 
 if six.PY3:
     import io
@@ -475,3 +485,601 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             task.node.driver_info['enable_directed_lanboot'] = 'False'
             sdflex_boot.is_directed_lanboot_requested(task.node)
             is_directed_lanboot_requested.assert_called_once_with(task.node)
+
+
+class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
+
+    boot_interface = 'sdflex-vmedia'
+
+    def setUp(self):
+        super(SdflexRedfishVirtualMediaBootTestCase, self).setUp()
+        self.config(enabled_hardware_types=['sdflex-redfish'],
+                    enabled_power_interfaces=['sdflex-redfish'],
+                    enabled_boot_interfaces=['sdflex-vmedia'],
+                    enabled_management_interfaces=['sdflex-redfish'],
+                    enabled_bios_interfaces=['sdflex-redfish'])
+        self.node = obj_utils.create_test_node(
+            self.context, driver='sdflex-redfish',
+            driver_info=test_common.INFO_DICT)
+
+    @mock.patch.object(os, 'link', autospec=True)
+    @mock.patch.object(os, 'mkdir', autospec=True)
+    @mock.patch.object(os, 'chmod', autospec=True)
+    def test__publish_image_local_link(self, mock_chmod, mock_mkdir,
+                                       mock_link):
+        image_share_root = "/home/ubuntu/nfsfolder/"
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            object_name = '%s.iso' % task.node.uuid
+            url = task.driver.boot._publish_image('file.iso', object_name,
+                                                  image_share_root)
+            new_file_location = image_share_root + object_name
+            self.assertEqual(object_name, url)
+            mock_chmod.assert_called_once_with(new_file_location, 0o777)
+            mock_link.assert_called_once_with('file.iso', new_file_location)
+
+    @mock.patch.object(sdflex_boot, 'shutil', autospec=True)
+    @mock.patch.object(os, 'link', autospec=True)
+    @mock.patch.object(os, 'mkdir', autospec=True)
+    @mock.patch.object(os, 'chmod', autospec=True)
+    def test__publish_image_local_copy(self, mock_chmod, mock_mkdir, mock_link,
+                                       mock_shutil):
+        image_share_root = "/home/ubuntu/nfsfolder/"
+        mock_link.side_effect = OSError()
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            object_name = '%s.iso' % task.node.uuid
+#             expected_url = '/home/ubuntu/nfsfolder/' + object_name
+            new_file_location = image_share_root + object_name
+
+            url = task.driver.boot._publish_image('file.iso', object_name,
+                                                  image_share_root)
+            self.assertEqual(object_name, url)
+            mock_chmod.assert_called_once_with(new_file_location, 0o777)
+            mock_shutil.copyfile.assert_called_once_with(
+                'file.iso', new_file_location)
+
+    @mock.patch.object(sdflex_boot, 'ironic_utils', autospec=True)
+    def test__unpublish_image_local(self, mock_ironic_utils):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            nfs_server_location = "/home/ubuntu/nfsfolder"
+            object_name = 'image-%s.iso' % task.node.uuid
+
+            expected_file = '/home/ubuntu/nfsfolder/' + object_name
+
+            task.driver.boot._unpublish_image(object_name, nfs_server_location)
+
+            mock_ironic_utils.unlink_without_raise.assert_called_once_with(
+                expected_file)
+
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_unpublish_image', autospec=True)
+    def test__cleanup_iso_image(self, mock_unpublish):
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+
+            task.node.driver_info['remote_image_share_root'] = "/home/ubuntu/nfsfolder"
+            task.node.driver_info['remote_image_share_type'] = 'nfs'
+            task.driver.boot._cleanup_iso_image(task)
+
+            object_name = 'boot-%s.iso' % task.node.uuid
+            nfs_server_location = "/home/ubuntu/nfsfolder"
+            mock_unpublish.assert_called_once_with(mock.ANY, object_name,
+                                                   nfs_server_location)
+
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_publish_image', autospec=True)
+    @mock.patch.object(images, 'create_boot_iso', autospec=True)
+    def test__prepare_iso_image(
+            self, mock_create_boot_iso, mock__publish_image):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.instance_info.update(deploy_boot_mode='uefi')
+
+            object_name = 'boot-%s.iso' % task.node.uuid
+            expected_url = '/home/ubuntu/nfsfolder/' + object_name
+
+            mock__publish_image.return_value = expected_url
+
+            url = task.driver.boot._prepare_iso_image(
+                task, 'http://kernel/img', 'http://ramdisk/img',
+                'http://bootloader/img', root_uuid=task.node.uuid)
+
+            mock__publish_image.assert_called_once()
+
+            mock_create_boot_iso.assert_called_once_with(
+                mock.ANY, mock.ANY, 'http://kernel/img', 'http://ramdisk/img',
+                boot_mode='uefi', esp_image_href='http://bootloader/img',
+                configdrive_href=mock.ANY,
+                kernel_params='nofb nomodeset vga=normal',
+                root_uuid='1be26c0b-03f2-4d2e-ae87-c02d7f33c123')
+
+            self.assertEqual(expected_url, url)
+
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_publish_image', autospec=True)
+    @mock.patch.object(images, 'create_boot_iso', autospec=True)
+    def test__prepare_iso_image_kernel_params(
+            self, mock_create_boot_iso, mock__publish_image):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            kernel_params = 'network-config=base64-cloudinit-blob'
+
+            task.node.instance_info.update(kernel_append_params=kernel_params)
+
+            task.driver.boot._prepare_iso_image(
+                task, 'http://kernel/img', 'http://ramdisk/img',
+                bootloader_href=None, root_uuid=task.node.uuid)
+
+            mock_create_boot_iso.assert_called_once_with(
+                mock.ANY, mock.ANY, 'http://kernel/img', 'http://ramdisk/img',
+                boot_mode=None, esp_image_href=None,
+                configdrive_href=mock.ANY,
+                kernel_params=kernel_params,
+                root_uuid='1be26c0b-03f2-4d2e-ae87-c02d7f33c123')
+
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_prepare_iso_image', autospec=True)
+    def test__prepare_deploy_iso(self, mock__prepare_iso_image):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader'}
+            )
+            task.node.instance_info.update(deploy_boot_mode='uefi')
+            task.driver.boot._prepare_deploy_iso(task, {}, 'deploy')
+            mock__prepare_iso_image.assert_called_once()
+
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_prepare_iso_image', autospec=True)
+    @mock.patch.object(images, 'create_boot_iso', autospec=True)
+    def test__prepare_boot_iso(self, mock_create_boot_iso,
+                               mock__prepare_iso_image):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader'}
+            )
+
+            task.node.instance_info.update(
+                {'image_source': 'http://boot/iso',
+                 'kernel': 'http://kernel/img',
+                 'ramdisk': 'http://ramdisk/img'})
+
+            task.driver.boot._prepare_boot_iso(task, root_uuid=task.node.uuid)
+
+            mock__prepare_iso_image.assert_called_once_with(
+                mock.ANY, task, 'http://kernel/img', 'http://ramdisk/img',
+                'bootloader', root_uuid=task.node.uuid)
+
+    @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
+    @mock.patch.object(deploy_utils, 'validate_image_properties',
+                       autospec=True)
+    @mock.patch.object(boot_mode_utils, 'get_boot_mode_for_deploy',
+                       autospec=True)
+    def test_validate_nfs(self, mock_get_boot_mode,
+                          mock_validate_image_properties,
+                          mock_parse_driver_info):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.instance_info.update(
+                {'kernel': 'kernel',
+                 'ramdisk': 'ramdisk',
+                 'image_source': 'http://image/source'}
+            )
+
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader',
+                 'remote_image_share_root': '/home/ubuntu/nfsfolder/',
+                 'remote_image_server': '1.2.3.4',
+                 'remote_image_share_type': 'nfs'}
+            )
+
+            mock_get_boot_mode.return_value = 'uefi'
+
+            task.driver.boot.validate(task)
+
+            mock_validate_image_properties.assert_called_once()
+
+    @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
+    @mock.patch.object(deploy_utils, 'validate_image_properties',
+                       autospec=True)
+    @mock.patch.object(boot_mode_utils, 'get_boot_mode_for_deploy',
+                       autospec=True)
+    def test_validate_cifs(self, mock_get_boot_mode,
+                           mock_validate_image_properties,
+                           mock_parse_driver_info):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.instance_info.update(
+                {'kernel': 'kernel',
+                 'ramdisk': 'ramdisk',
+                 'image_source': 'http://image/source'}
+            )
+
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader',
+                 'remote_image_share_root': '/home/ubuntu/cifs/',
+                 'image_share_root': '/cifs',
+                 'remote_image_server': '1.2.3.4',
+                 'remote_image_share_type': 'cifs',
+                 'remote_image_user_name': 'mock',
+                 'remote_image_user_password': 'mock'
+                 }
+            )
+
+            mock_get_boot_mode.return_value = 'uefi'
+
+            task.driver.boot.validate(task)
+
+            mock_validate_image_properties.assert_called_once()
+
+    @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
+    @mock.patch.object(deploy_utils, 'validate_image_properties',
+                       autospec=True)
+    def test_validate_missing(self, mock_validate_image_properties,
+                              mock_parse_driver_info):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader',
+                 'remote_image_share_root': '/home/ubuntu/nfsfolder/',
+                 'remote_image_server': '1.2.3.4',
+                 'remote_image_share_type': 'cifs',
+                 }
+            )
+            self.assertRaises(exception.MissingParameterValue,
+                              task.driver.boot.validate, task)
+
+    @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
+    @mock.patch.object(deploy_utils, 'validate_image_properties',
+                       autospec=True)
+    def test_validate_invalid(self, mock_validate_image_properties,
+                              mock_parse_driver_info):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader',
+                 'remote_image_share_root': '/home/ubuntu/nfsfolder/',
+                 'remote_image_server': '1.2.3.4',
+                 'remote_image_share_type': 'cifsdfd',
+                 }
+            )
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.boot.validate, task)
+
+    @mock.patch.object(sdflex_boot.manager_utils, 'node_set_boot_device',
+                       autospec=True)
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_prepare_deploy_iso', autospec=True)
+    @mock.patch.object(sdflex_common, 'eject_vmedia', autospec=True)
+    @mock.patch.object(sdflex_common, 'insert_vmedia', autospec=True)
+    @mock.patch.object(sdflex_boot.manager_utils, 'node_power_action',
+                       autospec=True)
+    @mock.patch.object(sdflex_boot, 'boot_mode_utils', autospec=True)
+    def test_prepare_ramdisk_with_params_nfs(self, mock_boot_mode_utils,
+                                             mock_node_power_action,
+                                             mock__insert_vmedia,
+                                             mock__eject_vmedia,
+                                             mock__prepare_deploy_iso,
+                                             mock_node_set_boot_device):
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader',
+                 'remote_image_share_root': 'home/ubuntu/nfsfolder',
+                 'remote_image_server': '1.2.3.4',
+                 'remote_image_share_type': 'nfs',
+                 'remote_image_user_name': 'mock',
+                 'remote_image_user_password': 'mock'
+                 }
+            )
+            task.node.provision_state = states.DEPLOYING
+
+            mock__prepare_deploy_iso.return_value = 'image-url'
+            expected_url = "nfs://1.2.3.4/home/ubuntu/nfsfolder/image-url"
+            remote_server_data = {'remote_image_share_type': 'nfs',
+                                  'remote_image_user_name': 'mock',
+                                  'remote_image_user_password': 'mock'}
+            task.driver.boot.prepare_ramdisk(task, {})
+
+            mock_node_power_action.assert_called_once_with(
+                task, states.POWER_OFF)
+
+            mock__eject_vmedia.assert_called_once_with(
+                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+
+            mock__insert_vmedia.assert_called_once_with(
+                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                remote_server_data)
+
+            expected_params = {
+                'BOOTIF': None,
+                'ipa-agent-token': mock.ANY,
+                'ipa-debug': '1',
+            }
+
+            mock__prepare_deploy_iso.assert_called_once_with(
+                mock.ANY, task, expected_params, 'deploy')
+
+            mock_node_set_boot_device.assert_called_once_with(
+                task, boot_devices.CD, False)
+
+            mock_boot_mode_utils.sync_boot_mode.assert_called_once_with(task)
+
+    @mock.patch.object(sdflex_boot.manager_utils, 'node_set_boot_device',
+                       autospec=True)
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_prepare_deploy_iso', autospec=True)
+    @mock.patch.object(sdflex_common, 'eject_vmedia', autospec=True)
+    @mock.patch.object(sdflex_common, 'insert_vmedia', autospec=True)
+    @mock.patch.object(sdflex_boot.manager_utils, 'node_power_action',
+                       autospec=True)
+    @mock.patch.object(sdflex_boot, 'boot_mode_utils', autospec=True)
+    def test_prepare_ramdisk_with_params_cifs(self, mock_boot_mode_utils,
+                                              mock_node_power_action,
+                                              mock__insert_vmedia,
+                                              mock__eject_vmedia,
+                                              mock__prepare_deploy_iso,
+                                              mock_node_set_boot_device):
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader',
+                 'remote_image_share_root': '/home/ubuntu/cifs',
+                 'remote_image_server': '1.2.3.4',
+                 'remote_image_share_type': 'cifs',
+                 'remote_image_user_name': 'mock',
+                 'remote_image_user_password': 'mock',
+                 'image_share_root': 'cifs'
+                 }
+            )
+            task.node.provision_state = states.DEPLOYING
+
+            mock__prepare_deploy_iso.return_value = 'image-url'
+            expected_url = "cifs://1.2.3.4//home/ubuntu/cifs/image-url"
+            remote_server_data = {'remote_image_share_type': 'cifs',
+                                  'remote_image_user_name': 'mock',
+                                  'remote_image_user_password': 'mock'}
+            task.driver.boot.prepare_ramdisk(task, {})
+
+            mock_node_power_action.assert_called_once_with(
+                task, states.POWER_OFF)
+
+            mock__eject_vmedia.assert_called_once_with(
+                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+
+            mock__insert_vmedia.assert_called_once_with(
+                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                remote_server_data)
+
+            expected_params = {
+                'BOOTIF': None,
+                'ipa-agent-token': mock.ANY,
+                'ipa-debug': '1',
+            }
+
+            mock__prepare_deploy_iso.assert_called_once_with(
+                mock.ANY, task, expected_params, 'deploy')
+
+            mock_node_set_boot_device.assert_called_once_with(
+                task, boot_devices.CD, False)
+
+            mock_boot_mode_utils.sync_boot_mode.assert_called_once_with(task)
+
+    @mock.patch.object(sdflex_common, 'eject_vmedia', autospec=True)
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_cleanup_iso_image', autospec=True)
+    def test_clean_up_ramdisk(self, mock__cleanup_iso_image,
+                              mock__eject_vmedia):
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.provision_state = states.DEPLOYING
+
+            task.driver.boot.clean_up_ramdisk(task)
+
+            mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
+
+            eject_calls = [
+                mock.call(task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0),
+            ]
+
+            mock__eject_vmedia.assert_has_calls(eject_calls)
+
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       'clean_up_instance', autospec=True)
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_prepare_boot_iso', autospec=True)
+    @mock.patch.object(sdflex_common, 'eject_vmedia', autospec=True)
+    @mock.patch.object(sdflex_common, 'insert_vmedia', autospec=True)
+    @mock.patch.object(redfish_boot, 'manager_utils', autospec=True)
+    @mock.patch.object(sdflex_boot, 'deploy_utils', autospec=True)
+    @mock.patch.object(sdflex_boot, 'boot_mode_utils', autospec=True)
+    def test_prepare_instance_normal_boot(
+            self, mock_boot_mode_utils, mock_deploy_utils, mock_manager_utils,
+            mock__insert_vmedia, mock__eject_vmedia,
+            mock__prepare_boot_iso, mock_clean_up_instance):
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.provision_state = states.DEPLOYING
+            task.node.driver_internal_info[
+                'root_uuid_or_disk_id'] = self.node.uuid
+            task.node.driver_info.update(
+                {
+                    'deploy_kernel': 'kernel',
+                    'deploy_ramdisk': 'ramdisk',
+                    'bootloader': 'bootloader',
+                    'remote_image_share_root': '/home/ubuntu/cifs',
+                    'remote_image_server': '1.2.3.4',
+                    'remote_image_share_type': 'cifs',
+                    'remote_image_user_name': 'mock',
+                    'remote_image_user_password': 'mock'
+                }
+            )
+            mock_deploy_utils.get_boot_option.return_value = 'net'
+
+            expected_iso = "image-url"
+            expected_url = 'cifs://1.2.3.4//home/ubuntu/cifs/image-url'
+            mock__prepare_boot_iso.return_value = expected_iso
+
+            task.driver.boot.prepare_instance(task)
+
+            expected_params = {
+                'root_uuid': self.node.uuid
+            }
+            remote_server_data = {
+                'remote_image_share_type': 'cifs',
+                'remote_image_user_name': 'mock',
+                'remote_image_user_password': 'mock'
+            }
+
+            mock__prepare_boot_iso.assert_called_once_with(
+                mock.ANY, task, **expected_params)
+
+            mock__eject_vmedia.assert_called_once_with(
+                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+
+            mock__insert_vmedia.assert_called_once_with(
+                task, expected_url,
+                sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                remote_server_data)
+
+            mock_manager_utils.node_set_boot_device.assert_called_once()
+
+            mock_boot_mode_utils.sync_boot_mode.assert_called_once_with(task)
+
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       'clean_up_instance', autospec=True)
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_prepare_boot_iso', autospec=True)
+    @mock.patch.object(sdflex_common, 'eject_vmedia', autospec=True)
+    @mock.patch.object(sdflex_common, 'insert_vmedia', autospec=True)
+    @mock.patch.object(redfish_boot, 'manager_utils', autospec=True)
+    @mock.patch.object(sdflex_boot, 'deploy_utils', autospec=True)
+    @mock.patch.object(sdflex_boot, 'boot_mode_utils', autospec=True)
+    def test_prepare_instance_ramdisk_boot(
+            self, mock_boot_mode_utils, mock_deploy_utils, mock_manager_utils,
+            mock__insert_vmedia, mock__eject_vmedia,
+            mock__prepare_boot_iso, mock_clean_up_instance):
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.driver_info.update(
+                {
+                    'deploy_kernel': 'kernel',
+                    'deploy_ramdisk': 'ramdisk',
+                    'bootloader': 'bootloader',
+                    'remote_image_share_root': '/home/ubuntu/cifs',
+                    'remote_image_server': '1.2.3.4',
+                    'remote_image_share_type': 'cifs',
+                    'remote_image_user_name': 'mock',
+                    'remote_image_user_password': 'mock'
+                }
+            )
+            task.node.provision_state = states.DEPLOYING
+            task.node.driver_internal_info[
+                'root_uuid_or_disk_id'] = self.node.uuid
+
+            mock_deploy_utils.get_boot_option.return_value = 'ramdisk'
+
+            expected_iso = "image-url"
+            expected_url = "cifs://1.2.3.4//home/ubuntu/cifs/image-url"
+            mock__prepare_boot_iso.return_value = expected_iso
+
+            task.driver.boot.prepare_instance(task)
+            remote_server_data = {
+                'remote_image_share_type': 'cifs',
+                'remote_image_user_name': 'mock',
+                'remote_image_user_password': 'mock'
+            }
+            mock__prepare_boot_iso.assert_called_once_with(mock.ANY, task)
+
+            mock__eject_vmedia.assert_called_once_with(
+                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+
+            mock__insert_vmedia.assert_called_once_with(
+                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                remote_server_data)
+
+            mock_manager_utils.node_set_boot_device.assert_called_once_with(
+                task, boot_devices.CD, persistent=True)
+
+            mock_boot_mode_utils.sync_boot_mode.assert_called_once_with(task)
+
+    @mock.patch.object(sdflex_common, 'eject_vmedia', autospec=True)
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_cleanup_iso_image', autospec=True)
+    @mock.patch.object(redfish_boot, 'manager_utils', autospec=True)
+    def _test_prepare_instance_local_boot(
+            self, mock_manager_utils,
+            mock__cleanup_iso_image, mock__eject_vmedia):
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+            task.node.provision_state = states.DEPLOYING
+            task.node.driver_internal_info[
+                'root_uuid_or_disk_id'] = self.node.uuid
+            task.node.driver_info.update(
+                {'remote_image_share_type': 'nfs',
+                 'remote_image_share_root': '/home/ubuntu/nfsfolder/',
+                 'remote_image_server': '1.2.3.4'}
+            )
+            task.driver.boot.prepare_instance(task)
+
+            mock_manager_utils.node_set_boot_device.assert_called_once_with(
+                task, boot_devices.DISK, persistent=True)
+            mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
+            mock__eject_vmedia.assert_called_once_with(
+                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+
+    def test_prepare_instance_local_whole_disk_image(self):
+        self.node.driver_internal_info = {'is_whole_disk_image': True}
+        self.node.save()
+        self._test_prepare_instance_local_boot()
+
+    def test_prepare_instance_local_boot_option(self):
+        instance_info = self.node.instance_info
+        instance_info['capabilities'] = '{"boot_option": "local"}'
+        self.node.instance_info = instance_info
+        self.node.save()
+        self._test_prepare_instance_local_boot()
+
+    @mock.patch.object(sdflex_common, 'eject_vmedia', autospec=True)
+    @mock.patch.object(sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                       '_cleanup_iso_image', autospec=True)
+    def test_clean_up_instance(self, mock__cleanup_iso_image,
+                               mock__eject_vmedia):
+
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=True) as task:
+
+            task.driver.boot.clean_up_instance(task)
+            mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
+            eject_calls = [mock.call(
+                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)]
+            mock__eject_vmedia.assert_has_calls(eject_calls)
