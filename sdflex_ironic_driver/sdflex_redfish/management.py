@@ -1,6 +1,6 @@
 # Copyright 2017 Red Hat, Inc.
 # All Rights Reserved.
-# Copyright 2019 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -29,7 +29,8 @@ sushy = importutils.try_import('sushy')
 
 if sushy:
     redfish_management.BOOT_DEVICE_MAP.update(
-        {sushy.BOOT_SOURCE_TARGET_UEFI_HTTP: 'uefi http'})
+        {sushy.BOOT_SOURCE_TARGET_UEFI_HTTP: 'uefi http',
+         sushy.BOOT_SOURCE_TARGET_CD: 'cd'})
 
     redfish_management.BOOT_DEVICE_MAP_REV = {
         v: k for k, v in redfish_management.BOOT_DEVICE_MAP.items()}
