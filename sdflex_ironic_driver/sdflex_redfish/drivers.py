@@ -36,7 +36,8 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     @property
     def supported_boot_interfaces(self):
         """List of supported boot interfaces."""
-        return [sdflex_boot.SdflexPXEBoot]
+        return [sdflex_boot.SdflexPXEBoot,
+                sdflex_boot.SdflexRedfishVirtualMediaBoot]
 
     @property
     def supported_bios_interfaces(self):

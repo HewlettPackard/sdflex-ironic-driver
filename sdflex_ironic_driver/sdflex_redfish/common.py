@@ -213,3 +213,24 @@ def reset_bios_settings(node):
     except sdflex_error.SDFlexError as sdflex_exception:
         raise exception.SDFlexOperationError(operation=operation,
                                              error=sdflex_exception)
+
+
+def eject_vmedia(task, device):
+    """Eject the Vmedia.
+
+    device: Ejects this device
+    """
+
+    sdflex_object = get_sdflex_object(task.node)
+    sdflex_object.eject_vmedia(device)
+
+
+def insert_vmedia(task, url, device):
+    """Insert's the Vmedia.
+
+    url: URL of the iso which has to be inserted
+    device: Insert the URL to this device
+    """
+
+    sdflex_object = get_sdflex_object(task.node)
+    sdflex_object.insert_vmedia(url, device)
