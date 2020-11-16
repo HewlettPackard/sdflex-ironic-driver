@@ -12,6 +12,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from ironic.drivers.modules import agent
+from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers import redfish
 
 from sdflex_ironic_driver.sdflex_redfish import bios as sdflex_bios
@@ -37,14 +39,17 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     @property
     def supported_boot_interfaces(self):
         """List of supported boot interfaces."""
-        return [sdflex_boot.SdflexPXEBoot]
+        return [sdflex_boot.SdflexPXEBoot] +  super(
+            SdflexRedfishHardware, self).supported_boot_interfaces
 
     @property
     def supported_bios_interfaces(self):
         """List of supported Bios interfaces."""
-        return [sdflex_bios.SdflexRedfishBios]
+        return [sdflex_bios.SdflexRedfishBios] + super(
+            SdflexRedfishHardware, self).supported_bios_interfaces
 
     @property
     def supported_deploy_interfaces(self):
         """List of supported Deploy interfaces."""
-        return [sdflex_deploy.SDFlexAgentDeploy]
+        return [sdflex_deploy.SDFlexAgentDeploy, agent.AgentDeploy,
+                iscsi_deploy.ISCSIDeploy]
