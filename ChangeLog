@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+* Add support for SUM based firmware update
 * Boot from pre-provisioned volume
 
 1.1.0
