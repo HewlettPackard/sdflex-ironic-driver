@@ -41,7 +41,8 @@ INFO_DICT = {
     "redfish_system_id": "/redfish/v1/Systems/Partition2",
     "enable_directed_lanboot": False,
     "enable_uefi_httpboot": False,
-    "boot_file_path": {"UrlBootFile": "tftp://1.1.1.4/tftpboot/bootx64.efi"}
+    "boot_file_path": {"UrlBootFile": "tftp://1.1.1.4/tftpboot/bootx64.efi"},
+    "http_boot_uri": "http://1.2.3.4/bootx64.efi"
 }
 sdflex_client = importutils.try_import('sdflexutils.redfish.client')
 sdflex_error = importutils.try_import('sdflexutils.exception')
@@ -375,3 +376,56 @@ class SdflexCommonMethodsTestCase(BaseSdflexTest):
                               task.node)
             sdflex_object_mock.set_bios_settings.assert_called_once_with(
                 boot_file_path)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_enable_uefi_http_boot_file(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            boot_file_path = task.node.driver_info['boot_file_path']
+            task.node.driver_info['http_boot_uri'] = None
+            sdflex_common.enable_uefi_http_boot(task.node)
+            sdflex_object_mock.set_bios_settings.assert_called_once_with(
+                boot_file_path)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_enable_uefi_http_boot_uri(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            http_boot_uri = task.node.driver_info['http_boot_uri']
+            sdflex_common.enable_uefi_http_boot(task.node)
+            sdflex_object_mock.set_http_boot_uri.assert_called_once_with(
+                http_boot_uri)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_enable_uefi_http_boot_file_fail(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        sdflex_object_mock.set_bios_settings.side_effect = (
+            sdflex_error.SDFlexError('error'))
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            boot_file_path = None
+            task.node.driver_info['boot_file_path'] = boot_file_path
+            task.node.driver_info['http_boot_uri'] = None
+            self.assertRaises(exception.SDFlexOperationError,
+                              sdflex_common.enable_uefi_http_boot,
+                              task.node)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_enable_uefi_http_boot_uri_fail(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        sdflex_object_mock.set_http_boot_uri.side_effect = (
+            sdflex_error.SDFlexError('error'))
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            set_http_boot_uri = None
+            task.node.driver_info['boot_file_path'] = None
+            task.node.driver_info['http_boot_uri'] = set_http_boot_uri
+            self.assertRaises(exception.SDFlexOperationError,
+                              sdflex_common.enable_uefi_http_boot,
+                              task.node)

@@ -131,9 +131,13 @@ def prepare_node_for_deploy(task):
     # Disable secure boot on the node if it is in enabled state.
     _disable_secure_boot(task)
     node = task.node
-    if (is_directed_lanboot_requested(node) or
-            http_utils.is_http_boot_requested(task.node)):
+    if is_directed_lanboot_requested(node):
         sdflex_common.enable_directed_lan_boot(node)
+    elif http_utils.is_http_boot_requested(task.node):
+        sdflex_common.enable_uefi_http_boot(task.node)
+    else:
+        LOG.info("Booting through PXE as Directed LAN Boot and "
+                 "UEFI HTTP boot are not enabled.")
 
 
 def disable_secure_boot_if_supported(task):
@@ -327,9 +331,13 @@ class SdflexPXEBoot(pxe.PXEBoot):
         node = task.node
         if (is_directed_lanboot_requested(node) or
                 http_utils.is_http_boot_requested(node)):
-            # In this cleaning step it sets the URLBOOTFILE & URLBOOTFILE2
-            # path as ''.
+            # In this cleaning step it sets the URLBOOTFILE & URLBOOTFILE2 &
+            # HttpBootUri path as ''.
             sdflex_common.reset_bios_settings(node)
+            http_boot_uri = node.driver_info.get('http_boot_uri', None)
+            if http_boot_uri:
+                sdflex_object = sdflex_common.get_sdflex_object(node)
+                sdflex_object.set_http_boot_uri(None)
 
         if http_utils.is_http_boot_requested(node):
             try:
@@ -354,43 +362,77 @@ class SdflexPXEBoot(pxe.PXEBoot):
         """
         node = task.node
         sdflex_common.parse_driver_info(node)
-        if (is_directed_lanboot_requested(node)
-                or http_utils.is_http_boot_requested(node)):
-            boot_file_path = node.driver_info.get('boot_file_path')
-            if boot_file_path is None:
-                raise ironic_exception.MissingParameterValue(_(
-                    "Missing URLBootFile or UrlBootFile2 as keys in "
-                    "driver_info['boot_file_path']"))
-            url_data1 = boot_file_path.get('UrlBootFile', False)
-            url_data2 = boot_file_path.get('UrlBootFile2', False)
-            if url_data1 and is_directed_lanboot_requested(node):
-                if not url_data1.startswith('tftp://'):
-                    raise ironic_exception.InvalidParameterValue(_(
-                        "Directed Lan boot accepts only tftp url's as "
-                        "values for UrlBootFile in"
-                        "driver_info['boot_file_path']"))
-            elif url_data2 and is_directed_lanboot_requested(node):
-                if not url_data2.startswith('tftp://'):
-                    raise ironic_exception.InvalidParameterValue(_(
-                        "Directed Lan boot accepts only tftp url's as "
-                        "values for UrlBootFile2 in"
-                        "driver_info['boot_file_path']"))
-            elif url_data1 and http_utils.is_http_boot_requested(node):
-                if not url_data1.startswith('http://'):
-                    raise ironic_exception.InvalidParameterValue(_(
-                        "UEFI HTTP boot accepts only http url's as "
-                        "values for UrlBootFile in"
-                        "driver_info['boot_file_path']"))
-            elif url_data2 and http_utils.is_http_boot_requested(node):
-                if not url_data2.startswith('http://'):
-                    raise ironic_exception.InvalidParameterValue(_(
-                        "UEFI HTTP boot accepts only http url's as "
-                        "values for UrlBootFile2 in"
-                        "driver_info['boot_file_path']"))
+        if is_directed_lanboot_requested(node):
+            self.validate_directed_lanboot(node)
+        elif http_utils.is_http_boot_requested(node):
+            self.validate_uefi_httpboot(node)
+        super(SdflexPXEBoot, self).validate(task)
+
+    def validate_directed_lanboot(self, node):
+        boot_file_path = node.driver_info.get('boot_file_path', None)
+        if not boot_file_path:
+            raise ironic_exception.MissingParameterValue(_(
+                "Missing URLBootFile or UrlBootFile2 as keys in "
+                "driver_info['boot_file_path'] for node %(node)s")
+                % {'node': node.uuid})
+        url_data1 = boot_file_path.get('UrlBootFile', None)
+        url_data2 = boot_file_path.get('UrlBootFile2', None)
+        if url_data1 and not url_data1.startswith('tftp://'):
+            raise ironic_exception.InvalidParameterValue(_(
+                "Directed Lan boot accepts only tftp url's as values"
+                "for UrlBootFile in driver_info['boot_file_path'] for "
+                "node %(node)s") % {'node': node.uuid})
+        elif url_data2 and not url_data2.startswith('tftp://'):
+            raise ironic_exception.InvalidParameterValue(_(
+                "Directed Lan boot accepts only tftp url's as values "
+                "for UrlBootFile2 in driver_info['boot_file_path'] for "
+                "node %(node)s") % {'node': node.uuid})
+        elif not url_data1 and not url_data2:
+            raise ironic_exception.MissingParameterValue(_(
+                "Missing URLBootFile or UrlBootFile2 as keys in "
+                "driver_info['boot_file_path'] for "
+                "node %(node)s") % {'node': node.uuid})
+
+    def validate_uefi_httpboot(self, node):
+        http_boot_uri = node.driver_info.get('http_boot_uri', None)
+        boot_file_path = node.driver_info.get('boot_file_path', None)
+        if http_boot_uri:
+            if (not http_boot_uri.startswith('http://') or
+                not http_boot_uri.endswith(".efi")):
+                raise ironic_exception.InvalidParameterValue(_(
+                    "'%(http_boot_uri)s' is an invalid value in "
+                    "driver_info['http_boot_uri'] for node %(node)s."
+                    "For UEFI HTTP boot, bootloader name ending with '.efi'"
+                    " is valid inputs for 'http_boot_uri'. ") %
+                    {'http_boot_uri': http_boot_uri, 'node': node.uuid})
             else:
-                raise ironic_exception.MissingParameterValue(_(
-                    "Missing URLBootFile or UrlBootFile2 as keys in "
-                    "driver_info['boot_file_path']"))
+                pass
+        elif boot_file_path:
+            url_data1 = boot_file_path.get('UrlBootFile', None)
+            url_data2 = boot_file_path.get('UrlBootFile2', None)
+            if url_data1:
+                if (not url_data1.startswith('http://') or
+                    not url_data1.endswith(".efi")):
+                    raise ironic_exception.InvalidParameterValue(_(
+                        "'%(UrlBootFile)s' is an invalid value in "
+                        "driver_info['http_boot_uri'] for node %(node)s"
+                        "For UEFI HTTP boot, bootloaders ending with '.efi' "
+                        "is valid inputs for 'UrlBootFile' ") %
+                        {'UrlBootFile': url_data1, 'node': node.uuid})
+            if url_data2:
+                if (not url_data2.startswith('http://') or
+                    not url_data2.endswith(".efi")):
+                    raise ironic_exception.InvalidParameterValue(_(
+                        "'%(UrlBootFile)s' is an invalid value in "
+                        "driver_info['http_boot_uri'] for node %(node)s"
+                        "For UEFI HTTP boot, bootloaders ending with '.efi' "
+                        "is valid inputs for 'UrlBootFile' ") %
+                        {'UrlBootFile': url_data2, 'node': node.uuid})
+        else:
+            raise ironic_exception.MissingParameterValue(_(
+                "Missing URLBootFile or UrlBootFile2 as keys in "
+                "driver_info['boot_file_path'] or HTTP Boot URI is missing "
+                "for node %(node)s") % {'node': node.uuid})
 
 
 class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
