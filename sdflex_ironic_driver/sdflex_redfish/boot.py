@@ -97,9 +97,10 @@ def prepare_node_for_deploy(task):
     # Disable secure boot on the node if it is in enabled state.
     _disable_secure_boot(task)
     node = task.node
-    if (is_directed_lanboot_requested(node) or
-            http_utils.is_http_boot_requested(task.node)):
+    if is_directed_lanboot_requested(node):
         sdflex_common.enable_directed_lan_boot(node)
+    elif http_utils.is_http_boot_requested(task.node):
+        sdflex_common.enable_uefi_http_boot(task.node)
 
 
 def disable_secure_boot_if_supported(task):
@@ -295,6 +296,10 @@ class SdflexPXEBoot(pxe.PXEBoot):
             # In this cleaning step it sets the URLBOOTFILE & URLBOOTFILE2
             # path as ''.
             sdflex_common.reset_bios_settings(node)
+            http_boot_uri = node.driver_info.get('http_boot_uri', False)    
+            sdflex_object = sdflex_common.get_sdflex_object(node)
+            if http_boot_uri:
+                sdflex_object.set_http_boot_uri(None)
 
         if http_utils.is_http_boot_requested(node):
             try:
