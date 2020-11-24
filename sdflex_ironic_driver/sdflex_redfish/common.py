@@ -193,6 +193,28 @@ def enable_directed_lan_boot(node):
                                              error=sdflex_exception)
 
 
+def enable_uefi_http_boot(node):
+    """Enable UEFI HTTP boot.
+
+    Set 'UrlBootFile,UrlBootFile2' in the bios setting to enable UEFI HTTP
+    boot.
+    """
+    operation = (_("Setting bios setting for enabling UEFI HTTP boot"
+                   "for node %(node)s.") % {'node': node.uuid})
+    boot_file_path = node.driver_info.get('boot_file_path', False)
+    http_boot_uri = node.driver_info.get('http_boot_uri', False)
+    sdflex_object = get_sdflex_object(node)
+    try:
+        if http_boot_uri:
+            sdflex_object.set_http_boot_uri(http_boot_uri)
+        elif boot_file_path:
+            sdflex_object.set_bios_settings(boot_file_path)
+        LOG.debug(operation)
+    except sdflex_error.SDFlexError as sdflex_exception:
+        raise exception.SDFlexOperationError(operation=operation,
+                                             error=sdflex_exception)
+
+
 def reset_bios_settings(node):
     """Disable Directed LAN Boot or UEFI HTTP Boot.
 
