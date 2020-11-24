@@ -147,7 +147,7 @@ class SdflexBootPrivateMethodsTestCase(test_common.BaseSdflexTest):
                                                            states.POWER_OFF)
             func_disable_secure_boot.assert_called_once_with(task)
 
-    @mock.patch.object(sdflex_common, 'enable_directed_lan_boot',
+    @mock.patch.object(sdflex_common, 'enable_uefi_http_boot',
                        spec_set=True, autospec=True)
     @mock.patch.object(http_utils, 'is_http_boot_requested',
                        spec_set=True, autospec=True)
@@ -378,6 +378,34 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             func_http_boot_requested.assert_called_with(task.node)
             func_reset_bios_settings.assert_called_once_with(task.node)
 
+    @mock.patch.object(sdflex_common, 'get_sdflex_object',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(sdflex_common, 'reset_bios_settings',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(http_utils, 'is_http_boot_requested',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(sdflex_boot, 'disable_secure_boot_if_supported',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(manager_utils, 'node_power_action', spec_set=True,
+                       autospec=True)
+    @mock.patch.object(http_utils, 'clean_up_http_env', autospec=True)
+    def test_clean_up_instance_uefi_httpboot_enable_httpbooturi(
+            self, clean_up_http_env_mock,
+            node_power_mock, disable_secure_boot_if_supported_mock,
+            func_http_boot_requested, func_reset_bios_settings,
+            mock_get_sdflex_object):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['enable_directed_lanboot'] = 'False'
+            task.node.driver_info['http_boot_uri'] = 'http://1.2.3.4/bootx64.efi'  # noqa E501
+            task.driver.boot.clean_up_instance(task)
+            node_power_mock.assert_called_once_with(task, states.POWER_OFF)
+            clean_up_http_env_mock.assert_called_once_with(task, {})
+            disable_secure_boot_if_supported_mock.assert_called_once_with(task)
+            func_http_boot_requested.assert_called_with(task.node)
+            func_reset_bios_settings.assert_called_once_with(task.node)
+
     @mock.patch.object(sdflex_boot, 'disable_secure_boot_if_supported',
                        spec_set=True, autospec=True)
     @mock.patch.object(manager_utils, 'node_power_action', spec_set=True,
@@ -455,6 +483,40 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             task.node.driver_info['enable_uefi_httpboot'] = 'True'
             task.node.driver_info['boot_file_path'] = {
                 "UrlBootFile": "tftp://1.1.1.24/tftpboot/bootx64.efi"}
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.boot.validate, task)
+
+    @mock.patch.object(pxe.PXEBoot, 'validate', spec_set=True, autospec=True)
+    def test_validate_uefi_http_wrong_bootfilepath(self, func_validate):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['boot_file_path'] = {
+                "UrlBootFile": "http://1.1.1.24/tftpboot/bootx64"}
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.boot.validate, task)
+
+    @mock.patch.object(pxe.PXEBoot, 'validate', spec_set=True, autospec=True)
+    def test_validate_uefi_http_boot_http_boot_uri(self, func_validate):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['http_boot_uri'] = "http://1.1.1.24/tftpboot/bootx64.efi"  # noqa E501
+            task.driver.boot.validate(task)
+
+    def test_validate_uefi_http_boot_http_boot_uri_tftp_url(self):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['http_boot_uri'] = "tftp://1.1.1.24/tftpboot/bootx64.efi"  # noqa E501
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.boot.validate, task)
+
+    def test_validate_uefi_http_boot_http_boot_uri_invalid_url(self):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['http_boot_uri'] = "http://1.1.1.24/tftpboot/bootx64"  # noqa E501
             self.assertRaises(exception.InvalidParameterValue,
                               task.driver.boot.validate, task)
 
