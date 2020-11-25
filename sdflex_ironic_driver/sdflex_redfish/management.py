@@ -16,13 +16,11 @@
 #
 # Hewlett Packard Enterprise made changes in this file.
 
-from oslo_log import log as logging
+
 from oslo_utils import importutils
 
 from ironic.common import exception as ironic_exception
 from ironic.drivers.modules.redfish import management as redfish_management
-
-LOG = logging.getLogger(__name__)
 
 sushy = importutils.try_import('sushy')
 
