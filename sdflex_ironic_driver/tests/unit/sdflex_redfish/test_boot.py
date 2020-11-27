@@ -562,7 +562,8 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=True) as task:
 
-            task.node.driver_info['remote_image_share_root'] = "/home/ubuntu/nfsfolder"
+            task.node.driver_info['remote_image_share_root'] = (
+                "/home/ubuntu/nfsfolder")
             task.node.driver_info['remote_image_share_type'] = 'nfs'
             task.driver.boot._cleanup_iso_image(task)
 

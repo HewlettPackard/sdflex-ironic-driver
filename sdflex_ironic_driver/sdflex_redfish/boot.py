@@ -668,11 +668,14 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
         node = task.node
         remote_server_data = {}
         remote_image_server = node.driver_info.get('remote_image_server')
-        remote_image_share_root = node.driver_info.get('remote_image_share_root')
-
-        remote_server_data['remote_image_share_type'] = node.driver_info.get('remote_image_share_type')
-        remote_server_data['remote_image_user_name'] = node.driver_info.get('remote_image_user_name', None)
-        remote_server_data['remote_image_user_password'] = node.driver_info.get('remote_image_user_password', None)
+        remote_image_share_root = node.driver_info.get(
+            'remote_image_share_root')
+        remote_server_data['remote_image_share_type'] = (
+            node.driver_info.get('remote_image_share_type'))
+        remote_server_data['remote_image_user_name'] = (
+            node.driver_info.get('remote_image_user_name', None))
+        remote_server_data['remote_image_user_password'] = (
+            node.driver_info.get('remote_image_user_password', None))
 
         # NOTE(TheJulia): If this method is being called by something
         # aside from deployment, clean and rescue, such as conductor takeover,
@@ -688,7 +691,8 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
         # with virtual media boot, we should generate a token!
         manager_utils.add_secret_token(node, pregenerated=True)
         node.save()
-        ramdisk_params['ipa-agent-token'] = node.driver_internal_info['agent_secret_token']
+        ramdisk_params['ipa-agent-token'] = (
+            node.driver_internal_info['agent_secret_token'])
 
         manager_utils.node_power_action(task, states.POWER_OFF)
 
@@ -700,7 +704,9 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
         mode = deploy_utils.rescue_or_deploy_mode(node)
         iso_ref = self._prepare_deploy_iso(task, ramdisk_params, mode)
 
-        url = remote_server_data['remote_image_share_type'] + "://" + remote_image_server + "/" + remote_image_share_root + "/" + iso_ref
+        url = (remote_server_data['remote_image_share_type'] + "://" +
+               remote_image_server + "/" + remote_image_share_root + "/" +
+               iso_ref)
 
         sdflex_common.eject_vmedia(task,
                                    sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
@@ -759,12 +765,16 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
         self.clean_up_instance(task)
 
         remote_image_server = node.driver_info.get('remote_image_server')
-        remote_image_share_root = node.driver_info.get('remote_image_share_root')
+        remote_image_share_root = node.driver_info.get(
+            'remote_image_share_root')
 
         remote_server_data = {}
-        remote_server_data['remote_image_share_type'] = node.driver_info.get('remote_image_share_type')
-        remote_server_data['remote_image_user_name'] = node.driver_info.get('remote_image_user_name', None)
-        remote_server_data['remote_image_user_password'] = node.driver_info.get('remote_image_user_password', None)
+        remote_server_data['remote_image_share_type'] = (
+            node.driver_info.get('remote_image_share_type'))
+        remote_server_data['remote_image_user_name'] = (
+            node.driver_info.get('remote_image_user_name', None))
+        remote_server_data['remote_image_user_password'] = (
+            node.driver_info.get('remote_image_user_password', None))
 
         # Need to enable secure boot, if being requested.
         # update_secure_boot_mode checks and enables secure boot only if the
@@ -799,7 +809,9 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
 
         iso_ref = self._prepare_boot_iso(task, **params)
 
-        url = remote_server_data['remote_image_share_type'] + "://" + remote_image_server + "/" + remote_image_share_root + "/" + iso_ref
+        url = (remote_server_data['remote_image_share_type'] + "://" +
+               remote_image_server + "/" + remote_image_share_root + "/" +
+               iso_ref)
 
         sdflex_common.eject_vmedia(task,
                                    sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
@@ -849,7 +861,8 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
         required_params = ['remote_image_share_type', 'remote_image_server',
                            'remote_image_share_root']
         missing = []
-        if ('nfs' not in driver_info.values()) and ('cifs' not in driver_info.values()):
+        if (('nfs' not in driver_info.values()) and
+                ('cifs' not in driver_info.values())):
             raise ironic_exception.InvalidParameterValue(_(
                 "Invalid '%(value)s' as remote_image_share_type in "
                 "driver_info. It should be either 'nfs' or 'cifs'") %
