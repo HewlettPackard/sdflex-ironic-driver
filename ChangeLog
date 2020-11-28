@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+* Add support for SUM based firmware update
 * Sdflex Vmedia implementation of Sdflex Ironic Driver
 * Removed bios.py and test\_bios.py
 * Adding agent & direct interfaces to list of Supported Deploy Intrefaces
