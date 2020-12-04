@@ -121,4 +121,3 @@ class SDFlexAgentDeploy(SDflexHeartbeatMixin, agent.AgentDeploy):
                     "should be a Boolean value. '%(bfpv_inputed)s'"
                     " is not a valid value for 'bfpv'.")
                     % {'bfpv_inputed': driver_info['bfpv']})
-        super(SDFlexAgentDeploy, self).validate(task)
