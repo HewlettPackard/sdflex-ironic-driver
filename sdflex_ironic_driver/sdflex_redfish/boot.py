@@ -506,7 +506,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
             kernel_params += i_info.get("ramdisk_kernel_arguments", "")
 
         else:
-            kernel_params = i_info.get('kernel_append_params')
+            kernel_params = i_info.get('kernel_append_params', "")
 
         if params:
             kernel_params = ' '.join(
@@ -859,7 +859,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
                                     'remote_image_user_password',
                                     'image_share_root']
         required_params = ['remote_image_share_type', 'remote_image_server',
-                           'remote_image_share_root']
+                           'remote_image_share_root', 'bootloader']
         missing = []
         if (('nfs' not in driver_info.values()) and
                 ('cifs' not in driver_info.values())):
