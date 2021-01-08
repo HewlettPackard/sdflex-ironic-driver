@@ -1,5 +1,5 @@
 # Copyright 2014 Hewlett-Packard Development Company, L.P.
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -188,6 +188,58 @@ def enable_directed_lan_boot(node):
         sdflex_object.set_bios_settings(boot_file_path)
         LOG.debug(operation)
 
+    except sdflex_error.SDFlexError as sdflex_exception:
+        raise exception.SDFlexOperationError(operation=operation,
+                                             error=sdflex_exception)
+
+
+def set_network_setting_dhcpless_boot(node, url):
+    """Set HTTP URI for DHCP Less Boot and Static Ip address
+
+    """
+    operation = (_("Setting bios setting for enabling DHCPLESS Boot"
+                   "for node %(node)s.") % {'node': node.uuid})
+
+    sdflex_object = get_sdflex_object(node)
+
+    network_data = node.network_data.get('networks')[0]
+
+    ipv4_address = network_data.get('ip_address', None)
+
+    routes = network_data.get('routes')[0]
+
+    ipv4_gateway = routes.get('gateway', None)
+
+    ipv4_subnet_mask = routes.get('netmask', None)
+
+    bios_setting = {'UrlBootFile': url, 'Ipv4Address': ipv4_address,
+                    'Ipv4Gateway': ipv4_gateway,
+                    'Ipv4SubnetMask': ipv4_subnet_mask, 'Dhcpv4': 'Disabled'}
+    try:
+        sdflex_object.set_bios_settings(bios_setting)
+        LOG.debug(operation)
+    except sdflex_error.SDFlexError as sdflex_exception:
+        raise exception.SDFlexOperationError(operation=operation,
+                                             error=sdflex_exception)
+
+
+def reset_network_setting_dhcpless_boot(node):
+    """Disable DHCPLESS Boot
+
+    Unset the 'IPV4Address, Ipv4Gateway, Ipv4SubnetMask,  UrlBootFile'
+    in the bios setting to disable Directed Lan boot.
+    """
+    operation = (_("Setting 'IPV4Address, Ipv4Gateway, Ipv4SubnetMask,"
+                   " UrlBootFile' as '', in the bios setting for disabling"
+                   " DHCPLESS boot for node"
+                   "%(node)s.") % {'node': node.uuid})
+    bios_setting = {'UrlBootFile': '', 'Ipv4Address': '',
+                    'Ipv4Gateway': '', 'Ipv4SubnetMask': '',
+                    'Dhcpv4': 'Enabled'}
+    sdflex_object = get_sdflex_object(node)
+    try:
+        sdflex_object.set_bios_settings(bios_setting)
+        LOG.debug(operation)
     except sdflex_error.SDFlexError as sdflex_exception:
         raise exception.SDFlexOperationError(operation=operation,
                                              error=sdflex_exception)

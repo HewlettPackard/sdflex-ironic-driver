@@ -761,6 +761,16 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
             http_utils.is_http_boot_requested(task.node)
             is_http_boot_requested.assert_called_once_with(task.node)
 
+    @mock.patch.object(ironic_utils, 'unlink_without_raise',
+                       spec_set=True, autospec=True)
+    def test_clean_up_dhcpless_deploy_iso(self, unlink_without_raise_mock):
+        self.config(http_root='/var/www/html', group='deploy')
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_internal_info['deploy_boot_iso'] = (
+                "1.2.3.4/sdflex-redfish/boot.iso?filename=tmpcsmpj8nx.iso")
+            http_utils.clean_up_dhcpless_deploy_iso(task)
+
 
 @mock.patch.object(ironic_utils, 'unlink_without_raise', autospec=True)
 @mock.patch.object(http_utils, 'clean_up_http_config', autospec=True)

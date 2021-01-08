@@ -298,6 +298,19 @@ def clean_up_http_env(task, images_info):
     TFTPImageCache().clean_up()
 
 
+def clean_up_dhcpless_deploy_iso(task):
+    """Deletes the deploy iso of the node.
+
+     Cleans up the created deploy iso of the node which is created in
+     DHCPLESS provision.
+    """
+
+    iso_location = task.node.driver_internal_info.get('deploy_boot_iso').split("/")  # noqa E501
+    iso_name = iso_location[2].split("?")
+    path = CONF.deploy.http_root + "/" + iso_location[1] + "/" + iso_name[0]
+    ironic_utils.unlink_without_raise(path)
+
+
 def get_http_path_prefix():
     """Adds trailing slash (if needed) necessary for path-prefix
 
