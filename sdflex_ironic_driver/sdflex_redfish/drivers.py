@@ -1,4 +1,4 @@
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -40,7 +40,8 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     def supported_boot_interfaces(self):
         """List of supported boot interfaces."""
         return [sdflex_boot.SdflexPXEBoot,
-                sdflex_boot.SdflexRedfishVirtualMediaBoot]
+                sdflex_boot.SdflexRedfishVirtualMediaBoot,
+                sdflex_boot.SdflexRedfishDhcplessBoot]
 
     @property
     def supported_bios_interfaces(self):

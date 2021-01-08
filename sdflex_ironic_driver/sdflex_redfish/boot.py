@@ -1,7 +1,7 @@
 # Copyright 2015 Hewlett-Packard Development Company, L.P.
 # Copyright 2019 Red Hat, Inc.
 # All Rights Reserved.
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -21,19 +21,19 @@
 """
 Boot Interface for SDFlex driver and its supporting methods.
 """
+
 import os
 import shutil
 import tempfile
 from urllib import parse as urlparse
 
+from ironic_lib import metrics_utils
 from ironic_lib import utils as ironic_utils
 
-from oslo_serialization import base64
-from oslo_utils import importutils
-
-from ironic_lib import metrics_utils
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_serialization import base64
+from oslo_utils import importutils
 
 from ironic.common import boot_devices
 from ironic.common import exception as ironic_exception
@@ -43,18 +43,19 @@ from ironic.common import states
 from ironic.conductor import utils as manager_utils
 from ironic.drivers.modules import boot_mode_utils
 from ironic.drivers.modules import deploy_utils
+from ironic.drivers.modules import image_utils
 from ironic.drivers.modules import pxe
 from ironic.drivers.modules.redfish import boot as redfish_boot
-from sushy.resources.system import constants as sushy_constants
 
-from sdflexutils.redfish.resources.system import (
-    constants as sdflexutils_constants)
+from sdflexutils.redfish.resources.system import constants as sdflexutils_constants  # noqa E501
 
 from sdflex_ironic_driver import exception
 from sdflex_ironic_driver import http_utils
 from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
 
 sushy = importutils.try_import('sushy')
+
+from sushy.resources.system import constants as sushy_constants
 
 LOG = logging.getLogger(__name__)
 
@@ -65,6 +66,19 @@ boot_devices.CD = sushy_constants.BOOT_SOURCE_TARGET_CD
 METRICS = metrics_utils.get_metrics_logger(__name__)
 
 CONF = cfg.CONF
+
+sdflex_image_hander_data = {
+    "sdflex-redfish": {
+        "swift_enabled": False,
+        "container": None,
+        "timeout": 900,
+        "image_subdir": "sdflex-redfish",
+        "file_permission": 0o644,
+        "kernel_params": CONF.pxe.pxe_append_params
+    }
+}
+
+image_utils.ImageHandler._SWIFT_MAP.update(sdflex_image_hander_data)
 
 
 def _disable_secure_boot(task):
@@ -548,6 +562,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
                              "for node %(node)s", {'url': configdrive_href,
                                                    'node': task.node.uuid})
                 boot_iso_tmp_file = boot_fileobj.name
+
                 images.create_boot_iso(
                     task.context, boot_iso_tmp_file,
                     kernel_href, ramdisk_href,
@@ -581,7 +596,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
         :param params: a dictionary containing 'parameter name'->'value'
             mapping to be passed to kernel command line.
         :param mode: either 'deploy' or 'rescue'.
-        :returns: bootable ISO NFS/CIFS URL.
+        :returns: bootable ISO.
         :raises: MissingParameterValue, if any of the required parameters are
             missing.
         :raises: InvalidParameterValue, if any of the parameters have invalid
@@ -878,3 +893,135 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
             raise ironic_exception.MissingParameterValue(_(
                 "Missing %(missing)s in driver_info") % {'missing': missing})
         super(SdflexRedfishVirtualMediaBoot, self).validate(task)
+
+
+class SdflexRedfishDhcplessBoot(pxe.PXEBoot):
+
+    @METRICS.timer('SdflexRedfishDhcplessBoot.prepare_ramdisk')
+    def prepare_ramdisk(self, task, ramdisk_params):
+        """Prepares the boot of Ironic ramdisk.
+
+        This method prepares the boot of the deploy or rescue ramdisk after
+        reading relevant information from the node's driver_info and
+        instance_info.
+
+        :param task: a task from TaskManager.
+        :param ramdisk_params: the parameters to be passed to the ramdisk.
+        :returns: None
+        :raises: MissingParameterValue, if some information is missing in
+            node's driver_info or instance_info.
+        :raises: InvalidParameterValue, if some information provided is
+            invalid.
+        """
+        if task.node.provision_state in (states.DEPLOYING, states.RESCUING,
+                                         states.CLEANING):
+            node = task.node
+            d_info = redfish_boot._parse_driver_info(node)
+            # Label indicating a deploy or rescue operation being carried out
+            # on the node, 'deploy' or 'rescue'. Unless the node is in a
+            # rescue like state, the mode is set to 'deploy', indicating
+            # deploy operation is being carried out.
+
+            mode = deploy_utils.rescue_or_deploy_mode(node)
+
+            iso_ref = image_utils.prepare_deploy_iso(task, ramdisk_params,
+                                                     mode, d_info)
+            node.driver_internal_info.update({'deploy_boot_iso': iso_ref})
+
+            iso_ref = 'http://' + iso_ref
+            sdflex_common.set_network_setting_dhcpless_boot(node, iso_ref)
+            boot_mode_utils.sync_boot_mode(task)
+            manager_utils.node_set_boot_device(task, boot_devices.UEFIHTTP,
+                                               persistent=False)
+
+    @METRICS.timer('SdflexRedfishDhcplessBoot.prepare_instance')
+    def prepare_instance(self, task):
+        """Prepares the boot of instance.
+
+        This method prepares the boot of the instance. Only boot option
+        local is supported. If secure boot is enabled, it will boot the
+        OS in secure boot.
+
+        :param task: a task from TaskManager.
+        :returns: None
+        :raises: SDFlexOperationError, if some operation on SDFlex failed.
+        """
+
+        # Need to enable secure boot, if being requested.
+        # update_secure_boot_mode checks and enables secure boot only if the
+        # deploy has requested secure boot
+        sdflex_common.update_secure_boot_mode(task, True)
+
+        boot_mode_utils.sync_boot_mode(task)
+        node = task.node
+        boot_device = None
+
+        self.clean_up_instance(task)
+        boot_device = boot_devices.DISK
+
+        if boot_device and task.node.provision_state != states.ACTIVE:
+            persistent = True
+            if node.driver_info.get('force_persistent_boot_device',
+                                    'Default') == 'Never':
+                persistent = False
+            manager_utils.node_set_boot_device(task, boot_device,
+                                               persistent=persistent)
+
+    @METRICS.timer('SdflexRedfishDhcplessBoot.clean_up_instance')
+    def clean_up_instance(self, task):
+        """Cleans up the boot of instance.
+
+        This method cleans up the PXE / HTTP environment that was setup for
+        booting the instance. It unlinks the instance kernel/ramdisk in the
+        node's directory in tftproot / httproot and removes it's PXE config
+        / HTTP config.
+        In case of Directed LAN Boot / UEFI HTTP Boot BIOS setting are reset.
+        In case of UEFI iSCSI booting, it cleans up iSCSI target information
+        from the node.
+        Secure boot is also disabled if it was set earlier during provisioning
+        of the ironic node.
+
+        :param task: a task from TaskManager.
+        :returns: None
+        :raises: SDFlexOperationError, if some operation on SDFlex failed.
+        """
+        manager_utils.node_power_action(task, states.POWER_OFF)
+        disable_secure_boot_if_supported(task)
+
+        node = task.node
+
+        sdflex_common.reset_network_setting_dhcpless_boot(node)
+        image_utils.cleanup_iso_image(task)
+
+    @METRICS.timer('SdflexRedfishDhcplessBoot.validate')
+    def validate(self, task):
+        """Validate the deployment information for the task's node.
+
+        :param task: a TaskManager instance containing the node to act on.
+        :raises: InvalidParameterValue, if some information is invalid.
+        :raises: MissingParameterValue if some mandatory information
+        is missing on the node
+        """
+        node = task.node
+        sdflex_common.parse_driver_info(node)
+        if not node.network_data.get('networks'):
+            raise ironic_exception.MissingParameterValue(_(
+                "Missing network data. Please add the network data and retry"))
+
+        network_data = node.network_data.get('networks')[0]
+        ipv4_address = network_data.get('ip_address')
+        routes = network_data.get('routes')[0]
+        ipv4_gateway = routes.get('gateway')
+        ipv4_subnet_mask = routes.get('netmask')
+
+        missing_parameter = []
+        if not ipv4_address:
+            missing_parameter.append('ipv4_address')
+        if not ipv4_gateway:
+            missing_parameter.append('ipv4_gateway')
+        if not ipv4_subnet_mask:
+            missing_parameter.append('ipv4_subnet_mask')
+        if missing_parameter:
+            raise ironic_exception.MissingParameterValue(_(
+                "%(missing_parameter)s are Missing Parameter in Network"
+                " data") % {'missing_parameter': missing_parameter})
