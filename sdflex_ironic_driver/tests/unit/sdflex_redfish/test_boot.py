@@ -33,9 +33,11 @@ from ironic.conductor import task_manager
 from ironic.conductor import utils as manager_utils
 from ironic.drivers.modules import boot_mode_utils
 from ironic.drivers.modules import deploy_utils
+from ironic.drivers.modules import image_utils as redfish_image_utils
 from ironic.drivers.modules import pxe
 from ironic.drivers.modules.redfish import boot as redfish_boot
 from ironic.drivers.modules.redfish import utils as redfish_utils
+
 from ironic.tests.unit.objects import utils as obj_utils
 
 from sdflexutils.redfish.resources.system import (
@@ -652,7 +654,6 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                  'deploy_ramdisk': 'ramdisk',
                  'bootloader': 'bootloader'}
             )
-
             task.node.instance_info.update(
                 {'image_source': 'http://boot/iso',
                  'kernel': 'http://kernel/img',
@@ -1086,3 +1087,107 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
             eject_calls = [mock.call(
                 task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)]
             mock__eject_vmedia.assert_has_calls(eject_calls)
+
+
+class SdflexRedfishDhcplessBoot(test_common.BaseSdflexTest):
+
+    boot_interface = 'sdflex-redfish-dhcp_less'
+
+    @mock.patch.object(sdflex_common, 'set_network_setting_dhcpless_boot',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(redfish_image_utils, 'prepare_deploy_iso',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(boot_mode_utils, 'sync_boot_mode',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(manager_utils, 'node_set_boot_device',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(pxe.PXEBoot, 'prepare_ramdisk', spec_set=True,
+                       autospec=True)
+    def _test_prepare_ramdisk_needs_node_prep(
+            self, pxe_prepare_ramdisk_mock,
+            prepare_deploy_iso_mock, node_set_boot_device_mock,
+            sync_boot_mode_mock, set_network_setting_dhcpless_boot_mock,
+            prov_state):
+        self.node.provision_state = prov_state
+        self.node.save()
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info.update(
+                {'deploy_kernel': 'kernel',
+                 'deploy_ramdisk': 'ramdisk',
+                 'bootloader': 'bootloader',
+                 'rescue_kernel': 'rescue_kernel',
+                 'rescue_ramdisk': 'rescue_ramdisk'})
+            self.assertIsNone(
+                task.driver.boot.prepare_ramdisk(task, None))
+
+    def test_prepare_ramdisk_in_deploying(self):
+        self._test_prepare_ramdisk_needs_node_prep(prov_state=states.DEPLOYING)
+
+    def test_prepare_ramdisk_in_rescuing(self):
+        self._test_prepare_ramdisk_needs_node_prep(prov_state=states.RESCUING)
+
+    def test_prepare_ramdisk_in_cleaning(self):
+        self._test_prepare_ramdisk_needs_node_prep(prov_state=states.CLEANING)
+
+    @mock.patch.object(sdflex_boot, 'disable_secure_boot_if_supported',
+                       spec_set=True, autospec=True)
+    @mock.patch.object(manager_utils, 'node_power_action', spec_set=True,
+                       autospec=True)
+    @mock.patch.object(sdflex_common, 'reset_bios_settings', spec_set=True,
+                       autospec=True)
+    @mock.patch.object(pxe.PXEBoot, 'clean_up_instance', spec_set=True,
+                       autospec=True)
+    def test_clean_up_instance(self, pxe_cleanup_mock,
+                               reset_bios_settings_mock, node_power_mock,
+                               disable_secure_boot_if_supported_mock):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_directed_lanboot'] = 'False'
+            task.driver.boot.clean_up_instance(task)
+            node_power_mock.assert_called_once_with(task, states.POWER_OFF)
+            disable_secure_boot_if_supported_mock.assert_called_once_with(task)
+            pxe_cleanup_mock.assert_called_once_with(mock.ANY, task)
+
+    @mock.patch.object(http_utils, 'get_instance_image_info', autospec=True)
+    @mock.patch.object(http_utils, 'clean_up_http_config', autospec=True)
+    @mock.patch.object(http_utils, 'build_service_http_config', autospec=True)
+    @mock.patch.object(sdflex_common, 'update_secure_boot_mode', autospec=True)
+    @mock.patch.object(boot_mode_utils, 'sync_boot_mode', autospec=True)
+    @mock.patch.object(manager_utils, 'node_set_boot_device', autospec=True)
+    def test_prepare_instance(
+            self, sync_boot_mode_mock, node_set_boot_device_mock,
+            update_secure_boot_mode_mock, build_service_http_config_mock,
+            clean_up_http_config, get_instance_image_info_mock):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_internal_info['root_uuid_or_disk_id'] = (
+                "30212642-09d3-467f-8e09-21685826ab50")
+            self.assertIsNone(
+                task.driver.boot.prepare_instance(task))
+            task.driver.boot.prepare_instance(task)
+            update_secure_boot_mode_mock.assert_called_with(task, True)
+
+    @mock.patch.object(pxe.PXEBoot, 'validate', spec_set=True, autospec=True)
+    def test_validate(self, func_validate):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            network_data = {'links': [{'id': 'enp1s0', 'type': 'phy', 'ethernet_mac_address': '94:40:C9:D6:03:84', 'mtu': 1500}],  # noqa E501
+                            'networks': [{'id': 'provisioning IPv4', 'type': 'ipv4', 'link': 'enp1s0', 'ip_address': '10.229.136.128',  # noqa E501
+                                          'netmask': '255.255.248.0',
+                                          'routes': [{'network': '10.229.136.0', 'netmask': '255.255.248.0', 'gateway': '10.229.136.1'},  # noqa E501
+                                                     {'network': '0.0.0.0', 'netmask': '0.0.0.0', 'gateway': '10.229.136.1'}],  # noqa E501
+                                          'network_id': ''}],
+                            'services': [{'type': 'dns', 'address': '10.229.136.1'}]}  # noqa E501
+            task.node.update({'network_data': network_data})
+            task.driver.boot.validate(task)
+
+    def test_validate_fail(self):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_directed_lanboot'] = 'True'
+            task.node.driver_info['boot_file_path'] = {
+                "UrlBootFile3": "tftp://1.1.1.24/tftpboot/bootx64.efi"}
+            self.assertRaises(exception.MissingParameterValue,
+                              task.driver.boot.validate, task)

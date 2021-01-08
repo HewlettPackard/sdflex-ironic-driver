@@ -64,7 +64,9 @@ class BaseSdflexTest(db_base.DbTestCase):
         super(BaseSdflexTest, self).setUp()
         self.config(enabled_hardware_types=['sdflex-redfish', 'fake-hardware'],
                     enabled_boot_interfaces=['sdflex-redfish',
-                                             'sdflex-redfish-vmedia', 'fake'],
+                                             'sdflex-redfish-vmedia',
+                                             'sdflex-redfish-dhcp_less',
+                                             'fake'],
                     enabled_power_interfaces=['sdflex-redfish', 'fake'],
                     enabled_bios_interfaces=['sdflex-redfish', 'fake'],
                     enabled_deploy_interfaces=['sdflex-redfish', 'fake'],
@@ -269,6 +271,51 @@ class SdflexCommonMethodsTestCase(BaseSdflexTest):
                               task.node)
             sdflex_object_mock.set_bios_settings.assert_called_once_with(
                 boot_file_path)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_set_network_setting_dhcpless_boot(self, get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            network_data = {'links': [{'id': 'enp1s0', 'type': 'phy', 'ethernet_mac_address': '94:40:C9:D6:03:84', 'mtu': 1500}],  # noqa E501
+                            'networks': [{'id': 'provisioning IPv4', 'type': 'ipv4', 'link': 'enp1s0', 'ip_address': '10.229.136.128',  # noqa E501
+                                          'netmask': '255.255.248.0',
+                                          'routes': [{'network': '10.229.136.0', 'netmask': '255.255.248.0', 'gateway': '10.229.136.1'},  # noqa E501
+                                                     {'network': '0.0.0.0', 'netmask': '0.0.0.0', 'gateway': '10.229.136.1'}],  # noqa E501
+                                          'network_id': ''}],
+                            'services': [{'type': 'dns', 'address': '10.229.136.1'}]}  # noqa E501
+            task.node.update({'network_data': network_data})
+            url = 'http:/1.2.3.4/boot.iso'
+            expected_data = {'UrlBootFile': 'http:/1.2.3.4/boot.iso',
+                             'Ipv4Address': '10.229.136.128',
+                             'Ipv4Gateway': '10.229.136.1',
+                             'Ipv4SubnetMask': '255.255.248.0'}
+            sdflex_common.set_network_setting_dhcpless_boot(task.node, url)
+            sdflex_object_mock.set_bios_settings.assert_called_once_with(
+                expected_data)
+
+    @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
+                       autospec=True)
+    def test_set_network_setting_dhcpless_boot_fail(self,
+                                                    get_sdflex_object_mock):
+        sdflex_object_mock = get_sdflex_object_mock.return_value
+        sdflex_object_mock.set_bios_settings.side_effect = (
+            sdflex_error.SDFlexError('error'))
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            network_data = {'links': [{'id': 'enp1s0', 'type': 'phy', 'ethernet_mac_address': '94:40:C9:D6:03:84', 'mtu': 1500}],  # noqa E501
+                            'networks': [{'id': 'provisioning IPv4', 'type': 'ipv4', 'link': 'enp1s0', 'ip_address': '10.229.136.128',  # noqa E501
+                                          'netmask': '255.255.248.0',
+                                          'routes': [{'network': '10.229.136.0', 'netmask': '255.255.248.0', 'gateway': '10.229.136.1'},  # noqa E501
+                                                     {'network': '0.0.0.0', 'netmask': '0.0.0.0', 'gateway': '10.229.136.1'}],  # noqa E501
+                                          'network_id': ''}],
+                            'services': [{'type': 'dns', 'address': '10.229.136.1'}]}  # noqa E501
+            task.node.update({'network_data': network_data})
+            url = 'http:/1.2.3.4/boot.iso'
+            self.assertRaises(exception.SDFlexOperationError,
+                              sdflex_common.set_network_setting_dhcpless_boot,
+                              task.node, url)
 
     @mock.patch.object(sdflex_common, 'get_sdflex_object', spec_set=True,
                        autospec=True)
