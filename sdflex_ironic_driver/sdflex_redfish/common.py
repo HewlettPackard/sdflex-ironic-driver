@@ -193,6 +193,23 @@ def enable_directed_lan_boot(node):
                                              error=sdflex_exception)
 
 
+def set_http_uri_dhcpless_boot(node, url):
+    """Set HTTP URI for DHCP Less Boot.
+
+    """
+    operation = (_("Setting bios setting for enabling Directed Lan boot"
+                   "for node %(node)s.") % {'node': node.uuid})
+    boot_file_path = {'UrlBootFile': url}
+    sdflex_object = get_sdflex_object(node)
+    try:
+        sdflex_object.set_bios_settings(boot_file_path)
+        LOG.debug(operation)
+
+    except sdflex_error.SDFlexError as sdflex_exception:
+        raise exception.SDFlexOperationError(operation=operation,
+                                             error=sdflex_exception)
+
+
 def reset_bios_settings(node):
     """Disable Directed LAN Boot or UEFI HTTP Boot.
 

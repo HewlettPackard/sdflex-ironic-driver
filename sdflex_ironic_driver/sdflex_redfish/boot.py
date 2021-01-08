@@ -24,12 +24,16 @@ Boot Interface for SDFlex driver and its supporting methods.
 import os
 import shutil
 import tempfile
+import functools
+import json
+import tempfile
 from urllib import parse as urlparse
 
 from ironic_lib import utils as ironic_utils
 
 from oslo_serialization import base64
 from oslo_utils import importutils
+sushy = importutils.try_import('sushy')
 
 from ironic_lib import metrics_utils
 from oslo_config import cfg
@@ -43,6 +47,7 @@ from ironic.common import states
 from ironic.conductor import utils as manager_utils
 from ironic.drivers.modules import boot_mode_utils
 from ironic.drivers.modules import deploy_utils
+from ironic.drivers.modules import image_utils
 from ironic.drivers.modules import pxe
 from ironic.drivers.modules.redfish import boot as redfish_boot
 from sushy.resources.system import constants as sushy_constants
@@ -54,8 +59,6 @@ from sdflex_ironic_driver import exception
 from sdflex_ironic_driver import http_utils
 from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
 
-sushy = importutils.try_import('sushy')
-
 LOG = logging.getLogger(__name__)
 
 boot_devices.UEFIHTTP = 'uefi http'
@@ -66,6 +69,17 @@ METRICS = metrics_utils.get_metrics_logger(__name__)
 
 CONF = cfg.CONF
 
+sdflex_image_hander_data={
+    "sdflex-redfish":{
+        "swift_enabled": False,
+        "container": None,
+        "timeout": 900,
+        "image_subdir": "sdflex-redfish",
+        "file_permission": 0o644,
+        "kernel_params": CONF.pxe.pxe_append_params
+        }
+    }
+image_utils.ImageHandler._SWIFT_MAP.update(sdflex_image_hander_data)
 
 def _disable_secure_boot(task):
     """Disables secure boot on node, if secure boot is enabled on node.
@@ -548,6 +562,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
                              "for node %(node)s", {'url': configdrive_href,
                                                    'node': task.node.uuid})
                 boot_iso_tmp_file = boot_fileobj.name
+                import pdb;pdb.set_trace()
                 images.create_boot_iso(
                     task.context, boot_iso_tmp_file,
                     kernel_href, ramdisk_href,
@@ -588,15 +603,45 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
             value.
         :raises: ImageCreationFailed, if creating ISO image failed.
         """
+        import pdb;pdb.set_trace()
         node = task.node
-        d_info = self._parse_driver_info(node)
+        d_info = redfish_boot._parse_driver_info(node)
 
         kernel_href = d_info.get('%s_kernel' % mode)
         ramdisk_href = d_info.get('%s_ramdisk' % mode)
         bootloader_href = d_info.get('bootloader')
+        import pdb;pdb.set_trace()
+        network_data = task.driver.network.get_node_network_data(task)
+        if network_data:
+            LOG.debug('Injecting custom network data for node %s',
+                      task.node.uuid)
+            with tempfile.NamedTemporaryFile(dir=CONF.tempdir,
+                                             suffix='.iso') as metadata_fileobj:
+
+                with open(metadata_fileobj.name, 'w') as f:
+                    json.dump(network_data, f, indent=2)
+
+                files_info = {
+                    metadata_fileobj.name: 'openstack/latest/network_data.json'
+                }
+
+                with tempfile.NamedTemporaryFile(
+                    dir=CONF.tempdir, suffix='.img') as cfgdrv_fileobj:
+
+                    images.create_vfat_image(cfgdrv_fileobj.name, files_info)
+
+                    configdrive_href = urlparse.urlunparse(
+                        ('file', '', cfgdrv_fileobj.name, '', '', ''))
+
+                    LOG.debug("Built configdrive %(name)s out of network data "
+                              "for node %(node)s", {'name': configdrive_href,
+                                                    'node': task.node.uuid})
+                    return self._prepare_iso_image(
+                            task, kernel_href, ramdisk_href, bootloader_href,
+                            configdrive=configdrive_href, params=params)
 
         return self._prepare_iso_image(
-            task, kernel_href, ramdisk_href, bootloader_href, params=params)
+            task, kernel_href, ramdisk_href, bootloader_href,configdrive=configdrive_href, params=params)
 
     def _prepare_boot_iso(self, task, root_uuid=None):
         """Prepare boot ISO image
@@ -878,3 +923,232 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
             raise ironic_exception.MissingParameterValue(_(
                 "Missing %(missing)s in driver_info") % {'missing': missing})
         super(SdflexRedfishVirtualMediaBoot, self).validate(task)
+
+
+class SdflexRedfishDhcplessBoot(pxe.PXEBoot):
+
+    @METRICS.timer('SdflexPXEBoot.prepare_ramdisk')
+    def prepare_ramdisk(self, task, ramdisk_params):
+        """Prepares the boot of Ironic ramdisk using PXE.
+
+        This method prepares the boot of the deploy or rescue ramdisk after
+        reading relevant information from the node's driver_info and
+        instance_info.
+
+        :param task: a task from TaskManager.
+        :param ramdisk_params: the parameters to be passed to the ramdisk.
+        :returns: None
+        :raises: MissingParameterValue, if some information is missing in
+            node's driver_info or instance_info.
+        :raises: InvalidParameterValue, if some information provided is
+            invalid.
+        :raises: SDFlexOperationError, if some operation on SDFlex failed.
+        """
+        import pdb;pdb.set_trace()
+        if task.node.provision_state in (states.DEPLOYING, states.RESCUING,
+                                         states.CLEANING):
+            prepare_node_for_deploy(task)
+        
+            node = task.node
+            d_info = redfish_boot._parse_driver_info(node)
+            # Label indicating a deploy or rescue operation being carried out
+            # on the node, 'deploy' or 'rescue'. Unless the node is in a
+            # rescue like state, the mode is set to 'deploy', indicating
+            # deploy operation is being carried out.
+    
+            mode = deploy_utils.rescue_or_deploy_mode(node)
+    
+            iso_ref = image_utils.prepare_deploy_iso(task, ramdisk_params,
+                                                     mode, d_info)
+            iso_ref = 'http://' + iso_ref
+            import pdb;pdb.set_trace()
+            sdflex_common.set_http_uri_dhcpless_boot(node, iso_ref)
+            boot_mode_utils.sync_boot_mode(task)
+            
+            manager_utils.node_set_boot_device(task, boot_devices.UEFIHTTP,
+                                               persistent=False)
+
+    @METRICS.timer('SdflexPXEBoot.prepare_instance')
+    def prepare_instance(self, task):
+        """Prepares the boot of instance.
+
+        This method prepares the boot of the instance after reading relevant
+        information from the node's instance_info. In case of UEFI HTTP Boot,
+        it switches to UEFI HTTP config. In case of localboot, it cleans up
+        the PXE config. In case of  'boot from volume', it updates the iSCSI
+        info onto SDFlex and sets the node to boot from 'UefiTarget' boot
+        device.
+
+        :param task: a task from TaskManager.
+        :returns: None
+        :raises: SDFlexOperationError, if some operation on SDFlex failed.
+        """
+        import pdb;pdb.set_trace()
+        # Need to enable secure boot, if being requested.
+        # update_secure_boot_mode checks and enables secure boot only if the
+        # deploy has requested secure boot
+        sdflex_common.update_secure_boot_mode(task, True)
+
+        boot_mode_utils.sync_boot_mode(task)
+        node = task.node
+        boot_option = deploy_utils.get_boot_option(node)
+        boot_device = None
+        instance_image_info = {}
+        if boot_option == "ramdisk":
+            instance_image_info = http_utils.get_instance_image_info(task)
+            http_utils.cache_ramdisk_kernel(task, instance_image_info)
+        if deploy_utils.is_iscsi_boot(task) or boot_option == "ramdisk":
+            http_utils.prepare_instance_http_config(
+                task, instance_image_info,
+                iscsi_boot=deploy_utils.is_iscsi_boot(task),
+                ramdisk_boot=(boot_option == "ramdisk"))
+            if http_utils.is_http_boot_requested(task.node):
+                boot_device = boot_devices.UEFIHTTP
+            else:
+                boot_device = boot_devices.PXE
+        elif boot_option != "local":
+            if task.driver.storage.should_write_image(task):
+                # Make sure that the instance kernel/ramdisk is cached.
+                # This is for the takeover scenario for active nodes.
+                instance_image_info = (
+                    http_utils.get_instance_image_info(task))
+                http_utils.cache_ramdisk_kernel(task, instance_image_info)
+            iwdi = (
+                task.node.driver_internal_info.get('is_whole_disk_image'))
+            try:
+                root_uuid_or_disk_id = task.node.driver_internal_info[
+                    'root_uuid_or_disk_id'
+                ]
+            except KeyError:
+                if not task.driver.storage.should_write_image(task):
+                    pass
+                elif not iwdi:
+                    LOG.warning("The UUID for the root partition can't be"
+                                " found, unable to switch the pxe config "
+                                "from deployment mode to service (boot) "
+                                "mode for node %(node)s",
+                                {"node": task.node.uuid})
+                else:
+                    LOG.warning("The disk id for the whole disk image "
+                                "can't be found, unable to switch the "
+                                "pxe config from deployment mode to "
+                                "service (boot) mode for node %(node)s. "
+                                "Booting the instance from disk.",
+                                {"node": task.node.uuid})
+                    http_utils.clean_up_http_config(task)
+                    boot_device = boot_devices.DISK
+            else:
+                http_utils.build_service_http_config(task,
+                                                     instance_image_info,
+                                                     root_uuid_or_disk_id)
+                if http_utils.is_http_boot_requested(task.node):
+                    boot_device = boot_devices.UEFIHTTP
+                else:
+                    boot_device = boot_devices.PXE
+        else:
+            # If it's going to boot from the local disk, we don't need
+            # PXE config files. They still need to be generated as part
+            # of the prepare() because the deployment does PXE boot the
+            # deploy ramdisk
+            import pdb;pdb.set_trace()
+            http_utils.clean_up_http_config(task)
+            boot_device = boot_devices.DISK
+
+        # NOTE(pas-ha) do not re-set boot device on ACTIVE nodes
+        # during takeover
+        if boot_device and task.node.provision_state != states.ACTIVE:
+            persistent = True
+            if node.driver_info.get('force_persistent_boot_device',
+                                    'Default') == 'Never':
+                persistent = False
+            manager_utils.node_set_boot_device(task, boot_device,
+                                               persistent=persistent)
+
+    @METRICS.timer('SdflexPXEBoot.clean_up_instance')
+    def clean_up_instance(self, task):
+        """Cleans up the boot of instance.
+
+        This method cleans up the PXE / HTTP environment that was setup for
+        booting the instance. It unlinks the instance kernel/ramdisk in the
+        node's directory in tftproot / httproot and removes it's PXE config
+        / HTTP config.
+        In case of Directed LAN Boot / UEFI HTTP Boot BIOS setting are reset.
+        In case of UEFI iSCSI booting, it cleans up iSCSI target information
+        from the node.
+        Secure boot is also disabled if it was set earlier during provisioning
+        of the ironic node.
+
+        :param task: a task from TaskManager.
+        :returns: None
+        :raises: SDFlexOperationError, if some operation on SDFlex failed.
+        """
+        manager_utils.node_power_action(task, states.POWER_OFF)
+        disable_secure_boot_if_supported(task)
+
+        node = task.node
+        if (is_directed_lanboot_requested(node) or
+                http_utils.is_http_boot_requested(node)):
+            # In this cleaning step it sets the URLBOOTFILE & URLBOOTFILE2
+            # path as ''.
+            sdflex_common.reset_bios_settings(node)
+
+        if http_utils.is_http_boot_requested(node):
+            try:
+                images_info = http_utils.get_instance_image_info(task)
+            except ironic_exception.MissingParameterValue as e:
+                LOG.warning('Could not get instance image info '
+                            'to clean up images for node %(node)s: %(err)s',
+                            {'node': node.uuid, 'err': e})
+            else:
+                http_utils.clean_up_http_env(task, images_info)
+        else:
+            super(SdflexRedfishDhcplessBoot, self).clean_up_instance(task)
+
+    @METRICS.timer('SdflexPXEBoot.validate')
+    def validate(self, task):
+        """Validate the deployment information for the task's node.
+
+        :param task: a TaskManager instance containing the node to act on.
+        :raises: InvalidParameterValue, if some information is invalid.
+        :raises: MissingParameterValue if some mandatory information
+        is missing on the node
+        """
+        node = task.node
+        sdflex_common.parse_driver_info(node)
+        if (is_directed_lanboot_requested(node)
+                or http_utils.is_http_boot_requested(node)):
+            boot_file_path = node.driver_info.get('boot_file_path')
+            if boot_file_path is None:
+                raise ironic_exception.MissingParameterValue(_(
+                    "Missing URLBootFile or UrlBootFile2 as keys in "
+                    "driver_info['boot_file_path']"))
+            url_data1 = boot_file_path.get('UrlBootFile', False)
+            url_data2 = boot_file_path.get('UrlBootFile2', False)
+            if url_data1 and is_directed_lanboot_requested(node):
+                if not url_data1.startswith('tftp://'):
+                    raise ironic_exception.InvalidParameterValue(_(
+                        "Directed Lan boot accepts only tftp url's as "
+                        "values for UrlBootFile in"
+                        "driver_info['boot_file_path']"))
+            elif url_data2 and is_directed_lanboot_requested(node):
+                if not url_data2.startswith('tftp://'):
+                    raise ironic_exception.InvalidParameterValue(_(
+                        "Directed Lan boot accepts only tftp url's as "
+                        "values for UrlBootFile2 in"
+                        "driver_info['boot_file_path']"))
+            elif url_data1 and http_utils.is_http_boot_requested(node):
+                if not url_data1.startswith('http://'):
+                    raise ironic_exception.InvalidParameterValue(_(
+                        "UEFI HTTP boot accepts only http url's as "
+                        "values for UrlBootFile in"
+                        "driver_info['boot_file_path']"))
+            elif url_data2 and http_utils.is_http_boot_requested(node):
+                if not url_data2.startswith('http://'):
+                    raise ironic_exception.InvalidParameterValue(_(
+                        "UEFI HTTP boot accepts only http url's as "
+                        "values for UrlBootFile2 in"
+                        "driver_info['boot_file_path']"))
+            else:
+                raise ironic_exception.MissingParameterValue(_(
+                    "Missing URLBootFile or UrlBootFile2 as keys in "
+                    "driver_info['boot_file_path']"))
