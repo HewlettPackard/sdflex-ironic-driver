@@ -51,5 +51,5 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     @property
     def supported_deploy_interfaces(self):
         """List of supported Deploy interfaces."""
-        return [sdflex_deploy.SDFlexAgentDeploy, agent.AgentDeploy,
-                iscsi_deploy.ISCSIDeploy]
+        return [agent.AgentDeploy,
+                iscsi_deploy.ISCSIDeploy, sdflex_deploy.SDFlexAgentDeploy]
