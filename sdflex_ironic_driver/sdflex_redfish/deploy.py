@@ -49,7 +49,7 @@ class SDflexHeartbeatMixin(agent_base.HeartbeatMixin):
         LOG.info('Deployment to node %s done', task.node.uuid)
 
     @METRICS.timer('HeartbeatMixin.heartbeat')
-    def heartbeat(self, task, callback_url, agent_version):
+    def heartbeat(self, task, callback_url, agent_version, agent_verify_ca=None):
         """Process a heartbeat.
 
         Check's if boot from volume is true then it calls
@@ -86,8 +86,9 @@ class SDflexHeartbeatMixin(agent_base.HeartbeatMixin):
                 node.save()
                 self.reboot_to_instance_bfpv(task)
         else:
-            super(SDflexHeartbeatMixin, self).heartbeat(task, callback_url,
-                                                        agent_version)
+            super(SDflexHeartbeatMixin, self).heartbeat(
+                    task, callback_url, agent_version,
+                    agent_verify_ca=agent_verify_ca)
 
 
 class SDFlexAgentDeploy(SDflexHeartbeatMixin, agent.AgentDeploy):
