@@ -567,7 +567,6 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
                     task.context, boot_iso_tmp_file,
                     kernel_href, ramdisk_href,
                     esp_image_href=bootloader_href,
-                    configdrive_href=configdrive_href,
                     root_uuid=root_uuid,
                     kernel_params=kernel_params,
                     boot_mode=boot_mode)
@@ -604,7 +603,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
         :raises: ImageCreationFailed, if creating ISO image failed.
         """
         node = task.node
-        d_info = self._parse_driver_info(node)
+        d_info = redfish_boot._parse_driver_info(node)
 
         kernel_href = d_info.get('%s_kernel' % mode)
         ramdisk_href = d_info.get('%s_ramdisk' % mode)
@@ -633,7 +632,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
         :raises: ImageCreationFailed, if creating ISO image failed.
         """
         node = task.node
-        d_info = redfish_boot.RedfishVirtualMediaBoot._parse_deploy_info(node)
+        d_info = redfish_boot._parse_deploy_info(node)
 
         kernel_href = node.instance_info.get('kernel')
         ramdisk_href = node.instance_info.get('ramdisk')
