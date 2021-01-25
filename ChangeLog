@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+* Fixes the broken V media for Openstack V release
+* Implementing DHCP less boot interface for sdflex-redfish driver
+* Fixing sdflex-ironic-driver for Openstack V release
+
+1.2.0
+-----
+
 * Add support for SUM based firmware update
 * Sdflex Vmedia implementation of Sdflex Ironic Driver
 * Removed bios.py and test\_bios.py
