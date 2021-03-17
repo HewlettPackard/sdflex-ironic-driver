@@ -177,7 +177,6 @@ class SdflexPXEBoot(pxe.PXEBoot):
             invalid.
         :raises: SDFlexOperationError, if some operation on SDFlex failed.
         """
-
         if task.node.provision_state in (states.DEPLOYING, states.RESCUING,
                                          states.CLEANING):
             prepare_node_for_deploy(task)
@@ -209,6 +208,13 @@ class SdflexPXEBoot(pxe.PXEBoot):
                                                persistent=False)
             if http_info:
                 http_utils.cache_ramdisk_kernel(task, http_info)
+        bfpv = str(task.node.driver_info.get('bfpv', 'false')).lower()
+        if bfpv == 'true':
+            node = task.node
+            driver_internal_info = node.driver_internal_info
+            driver_internal_info['bfpv_started'] = 'false'
+            node.driver_internal_info = driver_internal_info
+            node.save()
 
     @METRICS.timer('SdflexPXEBoot.prepare_instance')
     def prepare_instance(self, task):
@@ -225,7 +231,6 @@ class SdflexPXEBoot(pxe.PXEBoot):
         :returns: None
         :raises: SDFlexOperationError, if some operation on SDFlex failed.
         """
-
         # Need to enable secure boot, if being requested.
         # update_secure_boot_mode checks and enables secure boot only if the
         # deploy has requested secure boot
@@ -361,12 +366,14 @@ class SdflexPXEBoot(pxe.PXEBoot):
         is missing on the node
         """
         node = task.node
+        bfpv = str(task.node.driver_info.get('bfpv', 'false')).lower()
         sdflex_common.parse_driver_info(node)
         if is_directed_lanboot_requested(node):
             self.validate_directed_lanboot(node)
         elif http_utils.is_http_boot_requested(node):
             self.validate_uefi_httpboot(node)
-        super(SdflexPXEBoot, self).validate(task)
+        if bfpv == 'false':
+            super(SdflexPXEBoot, self).validate(task)
 
     def validate_directed_lanboot(self, node):
         boot_file_path = node.driver_info.get('boot_file_path')
