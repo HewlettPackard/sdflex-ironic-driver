@@ -178,7 +178,7 @@ class SdflexPXEBoot(pxe.PXEBoot):
         :raises: SDFlexOperationError, if some operation on SDFlex failed.
         """
         if task.node.provision_state in (states.DEPLOYING, states.RESCUING,
-                                         states.CLEANING):
+                                         states.CLEANING, states.INSPECTING):
             prepare_node_for_deploy(task)
         if not http_utils.is_http_boot_requested(task.node):
             super(SdflexPXEBoot, self).prepare_ramdisk(task, ramdisk_params)
@@ -960,7 +960,7 @@ class SdflexRedfishDhcplessBoot(pxe.PXEBoot):
             invalid.
         """
         if task.node.provision_state in (states.DEPLOYING, states.RESCUING,
-                                         states.CLEANING):
+                                         states.CLEANING, states.INSPECTING):
             node = task.node
             d_info = redfish_boot._parse_driver_info(node)
             # Label indicating a deploy or rescue operation being carried out
