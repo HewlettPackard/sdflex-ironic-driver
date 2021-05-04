@@ -67,18 +67,62 @@ METRICS = metrics_utils.get_metrics_logger(__name__)
 
 CONF = cfg.CONF
 
-sdflex_image_hander_data = {
-    "sdflex-redfish": {
-        "swift_enabled": False,
-        "container": None,
-        "timeout": 900,
-        "image_subdir": "sdflex-redfish",
-        "file_permission": 0o644,
-        "kernel_params": CONF.pxe.pxe_append_params
-    }
-}
 
-image_utils.ImageHandler._SWIFT_MAP.update(sdflex_image_hander_data)
+def sdflex_update_driver_config(self, driver):
+    _SWIFT_MAP = {
+        "redfish": {
+            "swift_enabled": CONF.redfish.use_swift,
+            "container": CONF.redfish.swift_container,
+            "timeout": CONF.redfish.swift_object_expiry_timeout,
+            "image_subdir": "redfish",
+            "file_permission": CONF.redfish.file_permission,
+            "kernel_params": CONF.redfish.kernel_append_params
+        },
+        "idrac": {
+            "swift_enabled": CONF.redfish.use_swift,
+            "container": CONF.redfish.swift_container,
+            "timeout": CONF.redfish.swift_object_expiry_timeout,
+            "image_subdir": "redfish",
+            "file_permission": CONF.redfish.file_permission,
+            "kernel_params": CONF.redfish.kernel_append_params
+        },
+        "ilo5": {
+            "swift_enabled": not CONF.ilo.use_web_server_for_images,
+            "container": CONF.ilo.swift_ilo_container,
+            "timeout": CONF.ilo.swift_object_expiry_timeout,
+            "image_subdir": "ilo",
+            "file_permission": CONF.ilo.file_permission,
+            "kernel_params": CONF.ilo.kernel_append_params
+        },
+        "ilo": {
+            "swift_enabled": not CONF.ilo.use_web_server_for_images,
+            "container": CONF.ilo.swift_ilo_container,
+            "timeout": CONF.ilo.swift_object_expiry_timeout,
+            "image_subdir": "ilo",
+            "file_permission": CONF.ilo.file_permission,
+            "kernel_params": CONF.ilo.kernel_append_params
+        },
+        "sdflex-redfish": {
+            "swift_enabled": False,
+            "container": None,
+            "timeout": 900,
+            "image_subdir": "sdflex-redfish",
+            "file_permission": 0o644,
+            "kernel_params": CONF.pxe.pxe_append_params
+        },
+    }
+
+    self._driver = driver
+    self.swift_enabled = _SWIFT_MAP[driver].get("swift_enabled")
+    self._container = _SWIFT_MAP[driver].get("container")
+    self._timeout = _SWIFT_MAP[driver].get("timeout")
+    self._image_subdir = _SWIFT_MAP[driver].get("image_subdir")
+    self._file_permission = _SWIFT_MAP[driver].get("file_permission")
+    # To get the kernel parameters
+    self.kernel_params = _SWIFT_MAP[driver].get("kernel_params")
+
+
+image_utils.ImageHandler.update_driver_config = sdflex_update_driver_config
 
 
 def _disable_secure_boot(task):
