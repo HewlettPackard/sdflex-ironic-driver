@@ -59,6 +59,16 @@ class SdflexBootPrivateMethodsTestCase(test_common.BaseSdflexTest):
 
     boot_interface = 'sdflex-redfish'
 
+    def test_sdflex_update_driver_config(self):
+        sdflex_boot.sdflex_update_driver_config(self, 'sdflex-redfish')
+        self.assertEqual("sdflex-redfish", self._driver)
+        self.assertEqual(False, self.swift_enabled)
+        self.assertNone(self._container)
+        self.assertEqual(900, self._timeout)
+        self.assertEqual("sdflex-redfish", self._image_subdir)
+        self.assertEqual(0o644, self._file_permission)
+        self.assertEqual('nofb nomodeset vga=normal', self.kernel_params)
+
     @mock.patch.object(sdflex_common, 'set_secure_boot_mode', spec_set=True,
                        autospec=True)
     @mock.patch.object(sdflex_common, 'get_secure_boot_mode', spec_set=True,
