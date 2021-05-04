@@ -59,6 +59,9 @@ class SdflexBootPrivateMethodsTestCase(test_common.BaseSdflexTest):
 
     boot_interface = 'sdflex-redfish'
 
+    def test_sdflex_update_driver_config(self):
+        sdflex_boot.sdflex_update_driver_config(self,'sdflex-redfish')
+
     @mock.patch.object(sdflex_common, 'set_secure_boot_mode', spec_set=True,
                        autospec=True)
     @mock.patch.object(sdflex_common, 'get_secure_boot_mode', spec_set=True,

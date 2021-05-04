@@ -67,18 +67,30 @@ METRICS = metrics_utils.get_metrics_logger(__name__)
 
 CONF = cfg.CONF
 
-sdflex_image_hander_data = {
-    "sdflex-redfish": {
-        "swift_enabled": False,
-        "container": None,
-        "timeout": 900,
-        "image_subdir": "sdflex-redfish",
-        "file_permission": 0o644,
-        "kernel_params": CONF.pxe.pxe_append_params
-    }
-}
 
-image_utils.ImageHandler._SWIFT_MAP.update(sdflex_image_hander_data)
+def sdflex_update_driver_config(self, driver):
+    _SWIFT_MAP = {
+        "sdflex-redfish": {
+            "swift_enabled": False,
+            "container": None,
+            "timeout": 900,
+            "image_subdir": "sdflex-redfish",
+            "file_permission": 0o644,
+            "kernel_params": CONF.pxe.pxe_append_params
+        },
+    }
+
+    self._driver = driver
+    self.swift_enabled = _SWIFT_MAP[driver].get("swift_enabled")
+    self._container = _SWIFT_MAP[driver].get("container")
+    self._timeout = _SWIFT_MAP[driver].get("timeout")
+    self._image_subdir = _SWIFT_MAP[driver].get("image_subdir")
+    self._file_permission = _SWIFT_MAP[driver].get("file_permission")
+    # To get the kernel parameters
+    self.kernel_params = _SWIFT_MAP[driver].get("kernel_params")
+
+
+image_utils.ImageHandler.update_driver_config = sdflex_update_driver_config
 
 
 def _disable_secure_boot(task):
