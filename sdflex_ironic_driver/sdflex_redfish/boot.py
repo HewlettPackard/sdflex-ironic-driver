@@ -1,7 +1,7 @@
 # Copyright 2015 Hewlett-Packard Development Company, L.P.
 # Copyright 2019 Red Hat, Inc.
 # All Rights Reserved.
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -161,7 +161,7 @@ class SdflexPXEBoot(pxe.PXEBoot):
         """
 
         if task.node.provision_state in (states.DEPLOYING, states.RESCUING,
-                                         states.CLEANING):
+                                         states.CLEANING, states.INSPECTING):
             prepare_node_for_deploy(task)
         if not http_utils.is_http_boot_requested(task.node):
             super(SdflexPXEBoot, self).prepare_ramdisk(task, ramdisk_params)
