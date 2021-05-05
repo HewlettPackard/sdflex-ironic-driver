@@ -161,7 +161,7 @@ class SdflexPXEBoot(pxe.PXEBoot):
         """
 
         if task.node.provision_state in (states.DEPLOYING, states.RESCUING,
-                                         states.CLEANING):
+                                         states.CLEANING, states.INSPECTING):
             prepare_node_for_deploy(task)
         if not http_utils.is_http_boot_requested(task.node):
             super(SdflexPXEBoot, self).prepare_ramdisk(task, ramdisk_params)

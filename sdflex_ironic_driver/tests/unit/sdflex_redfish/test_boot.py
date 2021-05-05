@@ -240,27 +240,8 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
     def test_prepare_ramdisk_in_cleaning(self):
         self._test_prepare_ramdisk_needs_node_prep(prov_state=states.CLEANING)
 
-    @mock.patch.object(sdflex_boot, 'prepare_node_for_deploy', spec_set=True,
-                       autospec=True)
-    @mock.patch.object(pxe.PXEBoot, 'prepare_ramdisk', spec_set=True,
-                       autospec=True)
-    def _test_prepare_ramdisk_does_not_need_node_prep(self,
-                                                      pxe_prepare_ramdisk_mock,
-                                                      prepare_node_mock,
-                                                      prov_state):
-        self.node.provision_state = prov_state
-        self.node.save()
-        with task_manager.acquire(self.context, self.node.uuid,
-                                  shared=False) as task:
-            self.assertIsNone(
-                task.driver.boot.prepare_ramdisk(task, None))
-
-            assert prepare_node_mock.call_count == 0
-            pxe_prepare_ramdisk_mock.assert_called_once_with(
-                mock.ANY, task, None)
-
     def test_prepare_ramdisk_in_inspecting(self):
-        self._test_prepare_ramdisk_does_not_need_node_prep(
+        self._test_prepare_ramdisk_needs_node_prep(
             prov_state=states.INSPECTING)
 
     @mock.patch.object(sdflex_boot, 'disable_secure_boot_if_supported',
