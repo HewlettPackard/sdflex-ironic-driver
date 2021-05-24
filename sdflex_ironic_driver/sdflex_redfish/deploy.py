@@ -59,7 +59,8 @@ class SDflexHeartbeatMixin(agent_base.HeartbeatMixin):
 
     @METRICS.timer('HeartbeatMixin.heartbeat')
     def heartbeat(self, task, callback_url, agent_version,
-                  agent_verify_ca=None):
+                  agent_verify_ca=None, agent_status=None,
+                  agent_status_message=None):
         """Process a heartbeat.
 
         Check's if boot from volume is true then it calls
@@ -67,6 +68,10 @@ class SDflexHeartbeatMixin(agent_base.HeartbeatMixin):
         :param task: task to work with.
         :param callback_url: agent HTTP API URL.
         :param agent_version: The version of the agent that is heartbeating
+        :param agent_verify_ca: TLS certificate for the agent.
+        :param agent_status: Status of the heartbeating agent
+        :param agent_status_message: Status message that describes the
+                                     agent_status
         """
         node = task.node
         try:
@@ -93,13 +98,19 @@ class SDflexHeartbeatMixin(agent_base.HeartbeatMixin):
                     timeutils.utcnow().isoformat())
                 if agent_verify_ca:
                     driver_internal_info['agent_verify_ca'] = agent_verify_ca
+                if agent_status:
+                    driver_internal_info['agent_status'] = agent_status
+                if agent_status_message:
+                    driver_internal_info['agent_status_message'] = \
+                        agent_status_message
                 node.driver_internal_info = driver_internal_info
                 node.save()
                 self.reboot_to_instance_bfpv(task)
         else:
             super(SDflexHeartbeatMixin, self).heartbeat(
                 task, callback_url, agent_version,
-                agent_verify_ca=agent_verify_ca)
+                agent_verify_ca=agent_verify_ca, agent_status=agent_status,
+                agent_status_message=agent_status_message)
 
     @METRICS.timer('AgentDeployMixin.configure_local_boot')
     def configure_local_boot(self, task, root_uuid=None,
