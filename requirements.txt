@@ -1,2 +1,2 @@
 # These are available on pypi
-sdflexutils
+sdflexutils>=1.2.0,<1.3.0
