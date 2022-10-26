@@ -2,7 +2,7 @@
 # Copyright 2014 Rackspace, Inc
 # All Rights Reserved
 #
-# Copyright 2020 Hewlett Packard Enterprise Development LP
+# Copyright 2022 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -441,11 +441,11 @@ def build_instance_http_options(task, http_info):
 def build_extra_http_options(node):
     # Enable debug in IPA according to CONF.debug if it was not
     # specified yet
-    http_append_params = CONF.pxe.pxe_append_params
+    http_append_params = CONF.pxe.kernel_append_params
     if CONF.debug and 'ipa-debug' not in http_append_params:
         http_append_params += ' ipa-debug=1'
     http_server_url = '/'.join([CONF.deploy.http_root, node.uuid])
-    return {'pxe_append_params': http_append_params,
+    return {'kernel_append_params': http_append_params,
             'http_server': http_server_url,
             'ipxe_timeout': CONF.pxe.ipxe_timeout * 1000}
 

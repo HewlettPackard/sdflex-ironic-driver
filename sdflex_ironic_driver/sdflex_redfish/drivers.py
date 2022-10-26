@@ -1,4 +1,4 @@
-# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2022 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -13,7 +13,6 @@
 #    under the License.
 
 from ironic.drivers.modules import agent
-from ironic.drivers.modules import iscsi_deploy
 from ironic.drivers import redfish
 
 from sdflex_ironic_driver.sdflex_redfish import bios as sdflex_bios
@@ -52,5 +51,4 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     @property
     def supported_deploy_interfaces(self):
         """List of supported Deploy interfaces."""
-        return [agent.AgentDeploy,
-                iscsi_deploy.ISCSIDeploy, sdflex_deploy.SDFlexAgentDeploy]
+        return [agent.AgentDeploy, sdflex_deploy.SDFlexAgentDeploy]
