@@ -9,7 +9,6 @@ flake8-import-order==0.11 # LGPLv3
 # care of pyflakes version compatibilty.
 pyflakes>=2.1.1
 
-
 ironic>=16.1.0,<17.1.0
 coverage!=4.4,>=4.0 # Apache-2.0
 doc8>=0.6.0 # Apache-2.0

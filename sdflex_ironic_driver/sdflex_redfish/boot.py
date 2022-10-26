@@ -1,7 +1,7 @@
 # Copyright 2015 Hewlett-Packard Development Company, L.P.
 # Copyright 2019 Red Hat, Inc.
 # All Rights Reserved.
-# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2022 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -49,19 +49,19 @@ from ironic.drivers.modules.redfish import boot as redfish_boot
 
 from sdflexutils.redfish.resources.system import constants as sdflexutils_constants  # noqa E501
 
+from sushy.resources.system import constants as sushy_constants
+
 from sdflex_ironic_driver import exception
 from sdflex_ironic_driver import http_utils
 from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
 
 sushy = importutils.try_import('sushy')
 
-from sushy.resources.system import constants as sushy_constants
 
 LOG = logging.getLogger(__name__)
-
 boot_devices.UEFIHTTP = 'uefi http'
 boot_devices.CD = sushy_constants.BOOT_SOURCE_TARGET_CD
-
+vmedia_device = 'cd0'
 
 METRICS = metrics_utils.get_metrics_logger(__name__)
 
@@ -76,7 +76,7 @@ def sdflex_update_driver_config(self, driver):
             "timeout": 900,
             "image_subdir": "sdflex-redfish",
             "file_permission": 0o644,
-            "kernel_params": CONF.pxe.pxe_append_params
+            "kernel_params": CONF.pxe.kernel_append_params
         },
     }
 
@@ -782,14 +782,14 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
                iso_ref)
 
         sdflex_common.eject_vmedia(task,
-                                   sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                                   vmedia_device)
         sdflex_common.insert_vmedia(task, url,
-                                    sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                                    vmedia_device,
                                     remote_server_data)
 
         boot_mode_utils.sync_boot_mode(task)
 
-        self._set_boot_device(task, boot_devices.CD)
+        self._set_boot_device(task, boot_devices.CD.value.lower())
 
         LOG.debug("Node %(node)s is set to one time boot from "
                   "%(device)s", {'node': task.node.uuid,
@@ -808,7 +808,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
                   "%(node)s", {'node': task.node.uuid})
 
         sdflex_common.eject_vmedia(task,
-                                   sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                                   vmedia_device)
         self._cleanup_iso_image(task)
 
     def prepare_instance(self, task):
@@ -823,7 +823,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
           node to boot from disk.
         - Unless `boot_option` requested for this deploy is 'ramdisk', pass
           root disk/partition ID to virtual media boot image
-        - Otherwise build boot image, insert it into virtual media device
+        - Otherwise build boot image,insert it into virtual media device
           and set node to boot from CD.
 
         :param task: a task from TaskManager.
@@ -887,15 +887,15 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
                iso_ref)
 
         sdflex_common.eject_vmedia(task,
-                                   sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                                   vmedia_device)
         sdflex_common.insert_vmedia(task, url,
-                                    sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                                    vmedia_device,
                                     remote_server_data)
 
         boot_mode_utils.sync_boot_mode(task)
 
         self._set_boot_device(
-            task, boot_devices.CD, persistent=True)
+            task, boot_devices.CD.value.lower(), persistent=True)
 
         LOG.debug("Node %(node)s is set to permanently boot from "
                   "%(device)s", {'node': task.node.uuid,
@@ -914,7 +914,7 @@ class SdflexRedfishVirtualMediaBoot(redfish_boot.RedfishVirtualMediaBoot):
                   "%(node)s", {'node': task.node.uuid})
         disable_secure_boot_if_supported(task)
         sdflex_common.eject_vmedia(task,
-                                   sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                                   vmedia_device)
         self._cleanup_iso_image(task)
 
     def validate(self, task):
