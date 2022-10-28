@@ -1,33 +1,63 @@
 CHANGES
 =======
 
+* Fix test cases for zed release ironic
+* Zed Release Parity Fixing Iscsi Deploy for Openstack Zed release due to deprecation of netboot Fixing Sdflex Vmedia setting of  boot device as per sushy version. Fixing UEFI HTTP Boot for pxe\_append\_params to  [pxe]kernel\_append\_params
+* Fixing Deploy interface for Openstack Ironic W release
+* Fixes broken sdflex-ironic-driver for Openstack Wallaby release
+* Adds support for SUM based firmware update as deploy step
+* Supports inspection for sdflex-redish
+* Fix for BFPV for Openstack V release
+* Adds HTTP Boot URI support for UEFI HTTP Boot
+
+1.3.0
+-----
+
 * Fixes the broken V media for Openstack V release
 * Implementing DHCP less boot interface for sdflex-redfish driver
 * Fixing sdflex-ironic-driver for Openstack V release
+* Follow up patch for Vmedia
 
 1.2.0
 -----
 
 * Add support for SUM based firmware update
+* Removing the pep8 errors
 * Sdflex Vmedia implementation of Sdflex Ironic Driver
 * Removed bios.py and test\_bios.py
 * Adding agent & direct interfaces to list of Supported Deploy Intrefaces
 * Boot from pre-provisioned volume
+* Reverting back gerrit test
+* This is test
 
 1.1.0
 -----
 
 * UEFI HTTP Boot implementation in sdflex-redfish
+* Removing pxe\_http\_boot\_config.template
+* Changed requirement.txt
+* UEFI HTTP Boot implementation in sdflex-redfish
 
 1.0.0
 -----
 
+* Copyright corrections in sdflex-ironic-driver
+* Copyright corrections in sdflex-ironic-driver
+* Fixed format issues and few comments for sdflex driver
+* Additional changes for PyPI packaging. Also removed undesired folders
 * Changes required for PYPI Packaging
 * Enable Directed LAN Boot for sdflex-redfish
 * Sdflex-redfish Bios interface implementation
 * Adding Python3 support for Tox
 * secureboot enablement for sdflex-redfish driver
+* test push from sgi devstack
+* Revert "testmergeissue"
+* testmergeissue
+* test
 * test case framework
+* test push from sgi devstack
+* git test from localvm
+* fix \_\_init\_\_ file
 * Add the hardware type sdflex-redfish
 * Creating the initial framework for sdflex-redfish driver
 * Initial commit

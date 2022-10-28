@@ -1,5 +1,5 @@
 # Copyright 2015 Hewlett-Packard Development Company, L.P.
-# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2022 Hewlett Packard Enterprise Development LP
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -63,7 +63,7 @@ class SdflexBootPrivateMethodsTestCase(test_common.BaseSdflexTest):
         sdflex_boot.sdflex_update_driver_config(self, 'sdflex-redfish')
         self.assertEqual("sdflex-redfish", self._driver)
         self.assertEqual(False, self.swift_enabled)
-        self.assertNone(self._container)
+        self.assertIsNone(self._container)
         self.assertEqual(900, self._timeout)
         self.assertEqual("sdflex-redfish", self._image_subdir)
         self.assertEqual(0o644, self._file_permission)
@@ -720,14 +720,14 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 mock.ANY, task, 'http://kernel/img', 'http://ramdisk/img',
                 'bootloader', root_uuid=task.node.uuid)
 
-    @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
-    @mock.patch.object(deploy_utils, 'validate_image_properties',
+    @mock.patch.object(redfish_boot.RedfishVirtualMediaBoot, 'validate',
                        autospec=True)
+    @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
     @mock.patch.object(boot_mode_utils, 'get_boot_mode_for_deploy',
                        autospec=True)
     def test_validate_nfs(self, mock_get_boot_mode,
-                          mock_validate_image_properties,
-                          mock_parse_driver_info):
+                          mock_parse_driver_info,
+                          mock_redfish_virtualmedia_validate):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=True) as task:
             task.node.instance_info.update(
@@ -749,16 +749,16 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
 
             task.driver.boot.validate(task)
 
-            mock_validate_image_properties.assert_called_once()
+            mock_redfish_virtualmedia_validate.assert_called_once()
 
-    @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
-    @mock.patch.object(deploy_utils, 'validate_image_properties',
+    @mock.patch.object(redfish_boot.RedfishVirtualMediaBoot, 'validate',
                        autospec=True)
+    @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
     @mock.patch.object(boot_mode_utils, 'get_boot_mode_for_deploy',
                        autospec=True)
     def test_validate_cifs(self, mock_get_boot_mode,
-                           mock_validate_image_properties,
-                           mock_parse_driver_info):
+                           mock_parse_driver_info,
+                           mock_redfish_virtualmedia_validate):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=True) as task:
             task.node.instance_info.update(
@@ -784,7 +784,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
 
             task.driver.boot.validate(task)
 
-            mock_validate_image_properties.assert_called_once()
+            mock_redfish_virtualmedia_validate.assert_called_once()
 
     @mock.patch.object(redfish_utils, 'parse_driver_info', autospec=True)
     @mock.patch.object(deploy_utils, 'validate_image_properties',
@@ -882,7 +882,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 mock.ANY, task, expected_params, 'deploy')
 
             mock_node_set_boot_device.assert_called_once_with(
-                task, boot_devices.CD, False)
+                task, 'cd', False)
 
             mock_boot_mode_utils.sync_boot_mode.assert_called_once_with(task)
 
@@ -945,7 +945,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 mock.ANY, task, expected_params, 'deploy')
 
             mock_node_set_boot_device.assert_called_once_with(
-                task, boot_devices.CD, False)
+                task, 'cd', False)
 
             mock_boot_mode_utils.sync_boot_mode.assert_called_once_with(task)
 
@@ -1086,7 +1086,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 remote_server_data)
 
             mock_manager_utils.node_set_boot_device.assert_called_once_with(
-                task, boot_devices.CD, persistent=True)
+                task, 'cd', persistent=True)
 
             mock_boot_mode_utils.sync_boot_mode.assert_called_once_with(task)
 
