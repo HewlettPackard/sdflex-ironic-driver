@@ -2,7 +2,7 @@
 # Copyright 2015 Red Hat, Inc.
 # All Rights Reserved.
 #
-# Copyright 2020-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2020-2022 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
