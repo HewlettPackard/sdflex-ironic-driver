@@ -2,7 +2,7 @@
 # Copyright 2015 Red Hat, Inc.
 # All Rights Reserved.
 #
-# Copyright 2020-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2020-2022 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -35,6 +35,7 @@ from ironic.common.i18n import _
 from ironic.conf import CONF
 from ironic.drivers.modules import agent
 from ironic.drivers.modules import agent_base
+from ironic.drivers.modules import agent_client
 from ironic.drivers.modules import deploy_utils
 
 from ironic.drivers.modules import boot_mode_utils
@@ -141,7 +142,8 @@ class SDflexHeartbeatMixin(agent_base.HeartbeatMixin):
         target_boot_mode = boot_mode_utils.get_boot_mode(task.node)
         LOG.debug('Creating the boot entry for node %(node)s',
                   {'node': node.uuid})
-        result = self._client.install_bootloader(
+        client = agent_client.get_client(task)
+        result = client.install_bootloader(
             node, root_uuid=root_uuid,
             efi_system_part_uuid=efi_system_part_uuid,
             prep_boot_part_uuid=prep_boot_part_uuid,

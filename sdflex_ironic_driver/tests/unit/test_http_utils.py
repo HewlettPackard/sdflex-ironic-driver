@@ -1,7 +1,7 @@
 #
 # Copyright 2014 Rackspace, Inc
 # All Rights Reserved
-# Copyright 2020 Hewlett Packard Enterprise Development LP
+# Copyright 2020-2022 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -57,7 +57,7 @@ class TestHTTPUtils(db_base.DbTestCase):
                         u'kernel',
             'ari_path': u'/httpboot/1be26c0b-03f2-4d2e-ae87-c02d7f33c123/'
                         u'ramdisk',
-            'pxe_append_params': 'test_param',
+            'kernel_append_params': 'test_param',
             'deployment_ari_path': u'/httpboot/1be26c0b-03f2-4d2e-ae87-c02d7'
                                    u'f33c123/deploy_ramdisk',
             'ipa-api-url': 'http://192.168.122.184:6385',
@@ -517,48 +517,24 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
         self.assertRaises(exception.MissingParameterValue,
                           http_utils.get_image_info, self.node)
 
-    @mock.patch.object(image_service.GlanceImageService, 'show', autospec=True)
-    def _test_get_instance_image_info(self, show_mock):
+    @mock.patch.object(deploy_utils, 'get_boot_option', autospec=True)
+    def _test_get_instance_image_info(self, get_boot_option_mock):
         properties = {'properties': {u'kernel_id': u'instance_kernel_uuid',
                       u'ramdisk_id': u'instance_ramdisk_uuid'}}
-
-        expected_info = {'ramdisk':
-                         ('instance_ramdisk_uuid',
-                          os.path.join(CONF.deploy.http_root,
-                                       self.node.uuid,
-                                       'ramdisk')),
-                         'kernel':
-                         ('instance_kernel_uuid',
-                          os.path.join(CONF.deploy.http_root,
-                                       self.node.uuid,
-                                       'kernel'))}
-        show_mock.return_value = properties
+        print(properties)
         self.context.auth_token = 'fake'
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=True) as task:
+            get_boot_option_mock.return_value = 'local'
             image_info = http_utils.get_instance_image_info(task)
-            show_mock.assert_called_once_with(mock.ANY, 'glance://image_uuid')
-            self.assertEqual(expected_info, image_info)
-
-            # test with saved info
-            show_mock.reset_mock()
-            image_info = http_utils.get_instance_image_info(task)
-            self.assertEqual(expected_info, image_info)
-            self.assertFalse(show_mock.called)
-            self.assertEqual('instance_kernel_uuid',
-                             task.node.instance_info['kernel'])
-            self.assertEqual('instance_ramdisk_uuid',
-                             task.node.instance_info['ramdisk'])
+            self.assertEqual({}, image_info)
 
     def test_get_instance_image_info(self):
-        # Tests when 'is_whole_disk_image' exists in driver_internal_info
-        self.config(group="deploy", default_boot_option="netboot")
         self._test_get_instance_image_info()
 
     def test_get_instance_image_info_without_is_whole_disk_image(self):
         # Tests when 'is_whole_disk_image' doesn't exists in
         # driver_internal_info
-        self.config(group="deploy", default_boot_option="netboot")
         del self.node.driver_internal_info['is_whole_disk_image']
         self.node.save()
         self._test_get_instance_image_info()
@@ -589,7 +565,7 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
                                             whle_dsk_img=False,
                                             debug=False, mode='deploy'):
         self.config(debug=debug)
-        self.config(pxe_append_params='test_param', group='pxe')
+        self.config(kernel_append_params='test_param', group='pxe')
         driver_internal_info = self.node.driver_internal_info
         driver_internal_info['is_whole_disk_image'] = whle_dsk_img
         self.node.driver_internal_info = driver_internal_info
@@ -637,7 +613,7 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
 
         expected_options = {
             'deployment_ari_path': pxe_ramdisk,
-            'pxe_append_params': expected_pxe_params,
+            'kernel_append_params': expected_pxe_params,
             'deployment_aki_path': pxe_kernel,
             'http_server': http_server,
             'ipxe_timeout': 0,
@@ -674,7 +650,7 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
         del self.node.driver_internal_info['is_whole_disk_image']
         self.node.save()
         pxe_params = 'my-pxe-append-params ipa-debug=0'
-        self.config(group='pxe', pxe_append_params=pxe_params)
+        self.config(group='pxe', kernel_append_params=pxe_params)
         self.config(group='deploy', http_root='/http-path/')
         image_info = {
             'deploy_kernel': ('deploy_kernel',
@@ -693,7 +669,7 @@ class PXEInterfacesTestCase(db_base.DbTestCase):
             'ari_path': 'no_ramdisk',
             'deployment_aki_path': 'path-to-deploy_kernel',
             'deployment_ari_path': 'path-to-deploy_ramdisk',
-            'pxe_append_params': pxe_params,
+            'kernel_append_params': pxe_params,
             'http_server': '/http-path//1be26c0b-03f2-4d2e-ae87-c02d7f33c123',
             'ipxe_timeout': 0}
         self.assertEqual(expected_options, options)
