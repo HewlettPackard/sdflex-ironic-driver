@@ -13,6 +13,7 @@
 #    under the License.
 
 from ironic.drivers.modules import agent
+from ironic.drivers.modules import pxe
 from ironic.drivers import redfish
 
 from sdflex_ironic_driver.sdflex_redfish import bios as sdflex_bios
@@ -51,4 +52,5 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
     @property
     def supported_deploy_interfaces(self):
         """List of supported Deploy interfaces."""
-        return [agent.AgentDeploy, sdflex_deploy.SDFlexAgentDeploy]
+        return [agent.AgentDeploy, pxe.PXEAnacondaDeploy,
+                sdflex_deploy.SDFlexAgentDeploy]
