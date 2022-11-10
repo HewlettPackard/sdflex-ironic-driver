@@ -246,8 +246,12 @@ class SdflexPXEBoot(pxe.PXEBoot):
         # Need to enable secure boot, if being requested.
         # update_secure_boot_mode checks and enables secure boot only if the
         # deploy has requested secure boot
-        sdflex_common.update_secure_boot_mode(task, True)
+        boot_option = deploy_utils.get_boot_option(task.node)
+        if boot_option != "kickstart":
+            sdflex_common.update_secure_boot_mode(task, True)
         if not http_utils.is_http_boot_requested(task.node):
+            if boot_option == "kickstart":
+                prepare_node_for_deploy(task)
             super(SdflexPXEBoot, self).prepare_instance(task)
         else:
             boot_mode_utils.sync_boot_mode(task)
@@ -386,6 +390,12 @@ class SdflexPXEBoot(pxe.PXEBoot):
             self.validate_uefi_httpboot(node)
         if bfpv == 'false':
             super(SdflexPXEBoot, self).validate(task)
+        elif node.get_interface('deploy') != 'sdflex-redfish':
+            raise ironic_exception.InvalidParameterValue(_(
+                "Node %(node)s has bfpv set to true and "
+                "deploy_interface is not set to sdflex-redfish. "
+                "bfpv is supported with deploy_interface sdflex-redfish.")
+                % {'node': node.uuid})
 
     def validate_directed_lanboot(self, node):
         boot_file_path = node.driver_info.get('boot_file_path')
@@ -413,6 +423,13 @@ class SdflexPXEBoot(pxe.PXEBoot):
                 "node %(node)s") % {'node': node.uuid})
 
     def validate_uefi_httpboot(self, node):
+        if (http_utils.is_http_boot_requested(node) and
+            deploy_utils.is_anaconda_deploy(node)):
+            raise ironic_exception.InvalidParameterValue(_(
+                "Node %(node)s has enable_uefi_httpboot set to true and "
+                "deploy_interface as anaconda. Uefi http boot is not "
+                "supported with deploy_interface as anaconda.")
+                % {'node': node.uuid})
         http_boot_uri = node.driver_info.get('http_boot_uri')
         boot_file_path = node.driver_info.get('boot_file_path')
         if http_boot_uri:
