@@ -40,9 +40,6 @@ from ironic.drivers.modules.redfish import utils as redfish_utils
 
 from ironic.tests.unit.objects import utils as obj_utils
 
-from sdflexutils.redfish.resources.system import (
-    constants as sdflexutils_constants)
-
 from sdflex_ironic_driver import http_utils
 from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
 from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
@@ -284,6 +281,27 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             update_secure_boot_mode_mock.assert_called_once_with(task, True)
             pxe_prepare_instance_mock.assert_called_once_with(mock.ANY, task)
 
+    @mock.patch.object(sdflex_boot, 'prepare_node_for_deploy', autospec=True)
+    @mock.patch.object(http_utils, 'is_http_boot_requested', autospec=True)
+    @mock.patch.object(deploy_utils, 'get_boot_option', autospec=True)
+    @mock.patch.object(sdflex_common, 'update_secure_boot_mode', spec_set=True,
+                       autospec=True)
+    @mock.patch.object(pxe.PXEBoot, 'prepare_instance', spec_set=True,
+                       autospec=True)
+    def test_prepare_instance_with_boot_option_kickstart(
+            self, pxe_prepare_instance_mock, update_secure_boot_mode_mock,
+            mock_get_boot_option, mock_is_http_boot_requested,
+            mock_prepare_node_for_deploy):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            mock_get_boot_option.return_value = 'kickstart'
+            mock_is_http_boot_requested.return_value = False
+            task.driver.boot.prepare_instance(task)
+            update_secure_boot_mode_mock.assert_not_called()
+            mock_is_http_boot_requested.assert_called_once_with(task.node)
+            mock_prepare_node_for_deploy.assert_called_once_with(task)
+            pxe_prepare_instance_mock.assert_called_once_with(mock.ANY, task)
+
     @mock.patch.object(http_utils, 'is_http_boot_requested', autospec=True)
     @mock.patch.object(http_utils, 'get_instance_image_info', autospec=True)
     @mock.patch.object(http_utils, 'clean_up_http_config', autospec=True)
@@ -432,6 +450,15 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             self.assertRaises(exception.MissingParameterValue,
                               task.driver.boot.validate, task)
 
+    def test_validate_fail_bfpv_with_wrong_deploy_interface(self):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.deploy_interface = 'direct'
+            task.node.driver_info['bfpv'] = 'True'
+            self.node.save()
+            self.assertRaises(exception.InvalidParameterValue,
+                              task.driver.boot.validate, task)
+
     def test_validate_directed_lanboot_boot_file_path_none(self):
         with task_manager.acquire(self.context, self.node.uuid,
                                   shared=False) as task:
@@ -447,6 +474,20 @@ class SdflexPXEBootTestCase(test_common.BaseSdflexTest):
             task.node.driver_info['enable_uefi_httpboot'] = 'True'
             task.node.driver_info['boot_file_path'] = None
             self.assertRaises(exception.MissingParameterValue,
+                              task.driver.boot.validate, task)
+
+    @mock.patch.object(deploy_utils, 'is_anaconda_deploy', autospec=True)
+    def test_validate_uefi_httpboot_boot_deploy_interface_anaconda(
+            self, mock_is_anaconda_deploy):
+        with task_manager.acquire(self.context, self.node.uuid,
+                                  shared=False) as task:
+            task.node.driver_info['enable_directed_lanboot'] = 'False'
+            task.node.driver_info['enable_uefi_httpboot'] = 'True'
+            task.node.driver_info['boot_file_path'] = {
+                "UrlBootFile": "http://1.1.1.24/tftpboot/bootx64.efi"}
+            task.node.deploy_interface = 'anaconda'
+            self.node.save()
+            self.assertRaises(exception.InvalidParameterValue,
                               task.driver.boot.validate, task)
 
     @mock.patch.object(pxe.PXEBoot, 'validate', spec_set=True, autospec=True)
@@ -866,10 +907,10 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 task, states.POWER_OFF)
 
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
             mock__insert_vmedia.assert_called_once_with(
-                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                task, expected_url, "cd0",
                 remote_server_data)
 
             expected_params = {
@@ -929,10 +970,10 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 task, states.POWER_OFF)
 
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
             mock__insert_vmedia.assert_called_once_with(
-                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                task, expected_url, "cd0",
                 remote_server_data)
 
             expected_params = {
@@ -964,7 +1005,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
             mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
 
             eject_calls = [
-                mock.call(task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0),
+                mock.call(task, "cd0"),
             ]
 
             mock__eject_vmedia.assert_has_calls(eject_calls)
@@ -1021,11 +1062,11 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 mock.ANY, task, **expected_params)
 
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
             mock__insert_vmedia.assert_called_once_with(
                 task, expected_url,
-                sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                "cd0",
                 remote_server_data)
 
             mock_manager_utils.node_set_boot_device.assert_called_once()
@@ -1079,10 +1120,10 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
             mock__prepare_boot_iso.assert_called_once_with(mock.ANY, task)
 
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
             mock__insert_vmedia.assert_called_once_with(
-                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                task, expected_url, "cd0",
                 remote_server_data)
 
             mock_manager_utils.node_set_boot_device.assert_called_once_with(
@@ -1114,7 +1155,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 task, boot_devices.DISK, persistent=True)
             mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
     def test_prepare_instance_local_whole_disk_image(self):
         self.node.driver_internal_info = {'is_whole_disk_image': True}
@@ -1140,7 +1181,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
             task.driver.boot.clean_up_instance(task)
             mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
             eject_calls = [mock.call(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)]
+                task, "cd0")]
             mock__eject_vmedia.assert_has_calls(eject_calls)
 
 
