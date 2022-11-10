@@ -40,9 +40,6 @@ from ironic.drivers.modules.redfish import utils as redfish_utils
 
 from ironic.tests.unit.objects import utils as obj_utils
 
-from sdflexutils.redfish.resources.system import (
-    constants as sdflexutils_constants)
-
 from sdflex_ironic_driver import http_utils
 from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
 from sdflex_ironic_driver.sdflex_redfish import common as sdflex_common
@@ -866,10 +863,10 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 task, states.POWER_OFF)
 
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
             mock__insert_vmedia.assert_called_once_with(
-                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                task, expected_url, "cd0",
                 remote_server_data)
 
             expected_params = {
@@ -929,10 +926,10 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 task, states.POWER_OFF)
 
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
             mock__insert_vmedia.assert_called_once_with(
-                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                task, expected_url, "cd0",
                 remote_server_data)
 
             expected_params = {
@@ -964,7 +961,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
             mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
 
             eject_calls = [
-                mock.call(task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0),
+                mock.call(task, "cd0"),
             ]
 
             mock__eject_vmedia.assert_has_calls(eject_calls)
@@ -1021,11 +1018,11 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 mock.ANY, task, **expected_params)
 
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
             mock__insert_vmedia.assert_called_once_with(
                 task, expected_url,
-                sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                "cd0",
                 remote_server_data)
 
             mock_manager_utils.node_set_boot_device.assert_called_once()
@@ -1079,10 +1076,10 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
             mock__prepare_boot_iso.assert_called_once_with(mock.ANY, task)
 
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
             mock__insert_vmedia.assert_called_once_with(
-                task, expected_url, sdflexutils_constants.VIRTUALMEDIA_DEVICE0,
+                task, expected_url, "cd0",
                 remote_server_data)
 
             mock_manager_utils.node_set_boot_device.assert_called_once_with(
@@ -1114,7 +1111,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
                 task, boot_devices.DISK, persistent=True)
             mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
             mock__eject_vmedia.assert_called_once_with(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)
+                task, "cd0")
 
     def test_prepare_instance_local_whole_disk_image(self):
         self.node.driver_internal_info = {'is_whole_disk_image': True}
@@ -1140,7 +1137,7 @@ class SdflexRedfishVirtualMediaBootTestCase(test_common.BaseSdflexTest):
             task.driver.boot.clean_up_instance(task)
             mock__cleanup_iso_image.assert_called_once_with(mock.ANY, task)
             eject_calls = [mock.call(
-                task, sdflexutils_constants.VIRTUALMEDIA_DEVICE0)]
+                task, "cd0")]
             mock__eject_vmedia.assert_has_calls(eject_calls)
 
 

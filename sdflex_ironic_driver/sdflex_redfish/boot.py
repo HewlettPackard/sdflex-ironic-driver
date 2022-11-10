@@ -247,6 +247,10 @@ class SdflexPXEBoot(pxe.PXEBoot):
         # update_secure_boot_mode checks and enables secure boot only if the
         # deploy has requested secure boot
         sdflex_common.update_secure_boot_mode(task, True)
+        boot_option = deploy_utils.get_boot_option(task.node)
+        if (is_directed_lanboot_requested(task.node) and
+                boot_option == "kickstart"):
+            prepare_node_for_deploy(task)
         if not http_utils.is_http_boot_requested(task.node):
             super(SdflexPXEBoot, self).prepare_instance(task)
         else:
