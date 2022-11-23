@@ -1,5 +1,5 @@
 # Copyright 2014 Hewlett-Packard Development Company, L.P.
-# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2022 Hewlett Packard Enterprise Development LP
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -72,6 +72,8 @@ class BaseSdflexTest(db_base.DbTestCase):
                     enabled_bios_interfaces=['sdflex-redfish', 'fake'],
                     enabled_deploy_interfaces=['sdflex-redfish', 'fake'],
                     enabled_management_interfaces=['sdflex-redfish', 'fake'],
+                    enabled_vendor_interfaces=['sdflex-redfish', 'redfish',
+                                               'no-vendor', 'fake'],
                     enabled_inspect_interfaces=['inspector', 'fake',
                                                 'no-inspect'])
         self.info = INFO_DICT.copy()
