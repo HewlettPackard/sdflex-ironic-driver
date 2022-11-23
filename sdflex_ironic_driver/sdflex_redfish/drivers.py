@@ -21,6 +21,7 @@ from sdflex_ironic_driver.sdflex_redfish import boot as sdflex_boot
 from sdflex_ironic_driver.sdflex_redfish import deploy as sdflex_deploy
 from sdflex_ironic_driver.sdflex_redfish import management as sdflex_mgmt
 from sdflex_ironic_driver.sdflex_redfish import power as sdflex_power
+from sdflex_ironic_driver.sdflex_redfish import vendor as sdflex_vendor
 
 
 class SdflexRedfishHardware(redfish.RedfishHardware):
@@ -54,3 +55,9 @@ class SdflexRedfishHardware(redfish.RedfishHardware):
         """List of supported Deploy interfaces."""
         return [agent.AgentDeploy, pxe.PXEAnacondaDeploy,
                 sdflex_deploy.SDFlexAgentDeploy]
+
+    @property
+    def supported_vendor_interfaces(self):
+        """List of supported Deploy interfaces."""
+        return [sdflex_vendor.SdflexRedfishVendorPassthru] + super(
+            SdflexRedfishHardware, self).supported_vendor_interfaces
