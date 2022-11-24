@@ -1003,7 +1003,6 @@ class SdflexRedfishDhcplessBoot(pxe.PXEBoot):
                                                      mode, d_info)
             node.driver_internal_info.update({'deploy_boot_iso': iso_ref})
 
-            iso_ref = 'http://' + iso_ref
             sdflex_common.set_network_setting_dhcpless_boot(node, iso_ref)
             boot_mode_utils.sync_boot_mode(task)
             manager_utils.node_set_boot_device(task, boot_devices.UEFIHTTP,
